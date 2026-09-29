@@ -1,0 +1,15 @@
+# Copyrighted game data: never commit
+wads/
+*.wad
+*.WAD
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Training outputs
+wandb/
+runs/
+checkpoints/
+*.lmp
