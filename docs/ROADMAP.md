@@ -39,6 +39,12 @@ The owner works 2-3 hours on most days. Milestones are sized in working sessions
 | M2 | 5-8 sessions |
 | M3 onward | estimated in each brief; training time on an RTX 4050 (6 GB) is the main unknown |
 
+## Storage
+
+The machine has one internal 477 GB NVMe SSD. All work happens there: the Ubuntu distro, the Python environment, the code, and any Training Run in progress.
+
+The owner has an external drive to be used as an archive only. When a milestone is marked `done`, its heavy outputs (checkpoints, Attempt videos, recorded demos) move to the archive, keeping on the SSD only what the next milestone needs. The archive is unplugged most of the time, so nothing a running process reads or writes may live on it. The drive's type, size and mount path are recorded here the first time it is used.
+
 ## Known difficulty
 
 From `research/2026-09-28-state-of-the-art-doom-agents.md`:

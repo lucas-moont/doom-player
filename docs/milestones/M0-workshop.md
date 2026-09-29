@@ -17,6 +17,7 @@ A working development environment in which ViZDoom loads `E1M1`, a random agent 
 - Windows 11, RTX 4050 Laptop GPU (6 GB VRAM), i5-13420H, 15.7 GB RAM
 - WSL 2.6.3 (kernel 6.6.87.2) with Ubuntu 24.04.5 LTS installed on 2026-09-28 as distro `Ubuntu-24.04`. The default user is a non-root account with `sudo` rights; `sudo` asks for a password only the owner knows, so commands needing it are run by the owner. It is the default distro, so a plain `wsl` opens it.
 - Ubuntu ships Python 3.12.3. Nothing else is installed in it yet.
+- Real limits inside WSL2 (measured 2026-09-28): 7.6 GB RAM (the WSL default of half the machine's memory; no `.wslconfig` exists), 12 logical CPUs. `df` reports about 955 GB free, which is the virtual disk's ceiling; the real limit is free space on the Windows `C:` drive, 146.5 GB at the time of measurement. WSL virtual disks grow on demand and do not shrink on their own; reclaiming space after deleting data takes `wsl --shutdown` plus `diskpart` `compact vdisk` in an elevated shell, run by the owner. Check `C:` free space before any long Training Run.
 - On Windows: Python 3.14.3, `uv`, `git`
 - The WAD is available in the workspace at `../doom/DOOM.WAD` (outside this repository). Verified 2026-09-28: `IWAD`, 12,408,292 bytes, 36 Maps (`E1M1` to `E4M9`), The Ultimate Doom, MD5 `c4fe9fd920207691a9f493668e0a2083`.
 - The file name is uppercase. ViZDoom looks for the exact name `doom.wad`, and Linux file names are case-sensitive, so copy it as `wads/doom.wad`.
