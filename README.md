@@ -37,6 +37,20 @@ Empty until milestone M2.
 | Guided reading of the code | `docs/learn/` |
 | The research behind the plan | `docs/research/` |
 
+## Quick start
+
+Runs on Linux (the project uses Ubuntu 24.04 on WSL2) with [`uv`](https://docs.astral.sh/uv/) installed.
+
+```bash
+uv sync                  # create .venv and install everything
+uv run doom-check        # GPU, ViZDoom version, WAD present?
+uv run doom-random --env VizdoomDoomE1M1-S1-v0 --seed 0
+```
+
+The last command plays one Attempt on `E1M1` with a random agent, saves the video to `videos/`, and logs it to Weights & Biases (run `uv run wandb login` once first, or set `WANDB_MODE=offline`). Without a WAD, the default `VizdoomFreedoom1E1M1-S1-v0` runs on the free Freedoom Map instead.
+
+If the repository sits on the Windows drive (`/mnt/c/...`), set `UV_LINK_MODE=copy` to silence `uv`'s hardlink warning.
+
 ## Game data
 
 This repository contains no game data. The original maps require a purchased copy of Doom; place `doom.wad` in `wads/`.
