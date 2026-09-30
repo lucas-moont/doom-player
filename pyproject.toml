@@ -12,9 +12,23 @@ dependencies = [
     "moviepy>=2.2",
 ]
 
+[project.scripts]
+doom-check = "doom_player.check_env:main"
+
 [dependency-groups]
 dev = ["pytest>=8"]
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]
 build-backend = "uv_build"
+
+# The Windows NVIDIA driver (556.19) supports CUDA up to 12.5; PyPI's default
+# torch build targets CUDA 13 and cannot see the GPU. The CUDA 12.6 build runs
+# on it through CUDA minor-version compatibility.
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
