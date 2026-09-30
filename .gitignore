@@ -13,3 +13,6 @@ wandb/
 runs/
 checkpoints/
 *.lmp
+
+# Attempt videos (logged to W&B instead)
+videos/
