@@ -16,3 +16,6 @@ checkpoints/
 
 # Attempt videos (logged to W&B instead)
 videos/
+
+# ViZDoom writes its engine settings here on every run
+_vizdoom.ini
