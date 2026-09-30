@@ -9,11 +9,20 @@ import argparse
 import gymnasium as gym
 from vizdoom import gymnasium_wrapper  # noqa: F401  (registers the Vizdoom* environments)
 
+from doom_player.paths import WAD_PATH
+
 DEFAULT_ENV = "VizdoomFreedoom1E1M1-S1-v0"
 
 
 def make_env(env_id: str, frame_skip: int) -> gym.Env:
-    return gym.make(env_id, frame_skip=frame_skip)
+    options = {}
+    if env_id.startswith("VizdoomDoomE"):
+        # Original Maps need the purchased WAD. Without a path, ViZDoom looks
+        # for doom.wad inside its own package; point it at wads/ instead.
+        if not WAD_PATH.exists():
+            raise SystemExit(f"{env_id} needs the purchased WAD at {WAD_PATH}")
+        options["doom_game_path"] = str(WAD_PATH)
+    return gym.make(env_id, frame_skip=frame_skip, **options)
 
 
 def play_attempt(env: gym.Env, seed: int) -> dict:

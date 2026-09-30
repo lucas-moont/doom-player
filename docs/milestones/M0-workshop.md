@@ -40,10 +40,10 @@ Each is recorded below as confirmed or refuted, with the evidence.
 | # | Fact | Source of doubt |
 |---|---|---|
 | 1 | The RTX 4050 is visible inside Ubuntu on WSL2 | **Confirmed 2026-09-28**: `nvidia-smi` reports `NVIDIA GeForce RTX 4050 Laptop GPU, 6141 MiB`, driver 556.19. `torch.cuda.is_available()` is still untested |
-| 2 | ViZDoom accepts The Ultimate Doom `doom.wad` and loads `E1M1` from it | The docs say "original Doom WAD" without naming a version |
-| 3 | `libopenal1` is required for original-Map environments | `doom.cfg` enables the audio buffer |
+| 2 | ViZDoom accepts The Ultimate Doom `doom.wad` and loads `E1M1` from it | **Confirmed 2026-09-30**: `VizdoomDoomE1M1-S1-v0` resets and steps with the owner's WAD (MD5 `c4fe9fd9...`); `game.get_doom_map()` returns `e1m1`, and a random-agent Attempt runs to the end |
+| 3 | `libopenal1` is required for original-Map environments | **Refuted 2026-09-30**: with `libopenal1` not installed (`dpkg-query: no packages found`), the audio buffer is enabled and returns `(5040, 2)` samples per step on original `E1M1` and on Freedoom |
 | 4 | A public W&B project renders for a logged-out visitor | Not stated on the pricing page |
-| 5 | How ViZDoom locates a WAD kept in `wads/` instead of the package directory | Lookup is by exact name in `./` then the package directory |
+| 5 | How ViZDoom locates a WAD kept in `wads/` instead of the package directory | **Answered 2026-09-30**: with no path given, ViZDoom fails with `FileDoesNotExistException` for `.../site-packages/vizdoom/scenarios/doom.wad`, the config file's own directory. The Gymnasium wrapper passes extra `gym.make` keyword arguments to `game.set_config()` before `game.init()`, so `doom_game_path=<absolute path to wads/doom.wad>` works with no copy into the package. See `make_env` in `src/doom_player/random_agent.py` |
 
 ## Completion criteria
 
