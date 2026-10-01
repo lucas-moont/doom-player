@@ -37,15 +37,35 @@ Settle each with the owner, then record it in `CONTEXT.md` or an ADR as appropri
 4. **MCP tool set.** Which tools exist, what each returns, and how many tics one action lasts.
 5. **What the automap tool returns**: image, text rendering, or both.
 
+### Answers, settled with the owner on 2026-10-01
+
+| # | Answer | Recorded in |
+|---|---|---|
+| 1 | One ruler, two doors: an `AttemptSession` owns the rules and the record; in-process Contenders implement `reset`/`act` (Door A), the MCP server drives the same session for an LLM (Door B) | `adr/0007-contender-interface.md` |
+| 2 | Spec `e1m1-v1`: `E1M1`, Difficulty 3, seeds 0-4, 6300 tics (3 minutes of game time) per Attempt, reported as `truncated` | `STANDARD_E1M1` in `src/doom_player/eval.py` |
+| 3 | Progress: share of the walking distance from spawn to exit closed at the Attempt's best moment, computed around the walls read from the WAD | `adr/0008-progress-metric.md` |
+| 4 | Tools `look`, `act(buttons, tics)` with 1 to 35 tics (default 8), and `automap`; `act` returns the new screen, HUD numbers and events | M1 Results |
+| 5 | The automap tool returns the image only | M1 Results |
+
+## Open facts to test
+
+| # | Fact | Outcome |
+|---|---|---|
+| 1 | The `mcp` SDK 2.x returns images as MCP image content | Untested (PR 2) |
+| 2 | `omgifol` 0.5.1 reads `E1M1` from The Ultimate Doom WAD on Python 3.12 | **Confirmed 2026-10-01**: 470 vertexes, 486 linedefs; player 1 start `(1056, -3616)` matches ViZDoom's `POSITION_X/Y` at spawn; exit switch is linedef 326, action 11 |
+| 3 | Claude Code shows MCP image results to the model when the server runs in WSL and the client on Windows | Untested (PR 2) |
+| 4 | `get_game_variable(POSITION_X)` works with position left out of the observation | **Confirmed 2026-10-01**: position read while `available_game_variables` holds only HUD numbers; `depth_buffer` and `labels_buffer` are `None` |
+| 5 | Turning the audio buffer off keeps seeded Attempts repeatable | **Confirmed 2026-10-01**: seed 0, 6300 tics, two runs identical (1575 actions, same final position); the Eval Suite's repeat test passes |
+
 ## Completion criteria
 
-- [ ] One documented command evaluates a Contender on `E1M1` and writes one Scoreboard row
-- [ ] Evaluating the random agent twice with the same seeds produces identical metrics
-- [ ] An evaluation stopped midway resumes without repeating finished Attempts
-- [ ] Each Scoreboard row records: Contender, Map, Difficulty, seeds, Clear Rate, progress metric, observation class, cost (tokens and wall-clock time)
+- [x] One documented command evaluates a Contender on `E1M1` and writes one Scoreboard row
+- [x] Evaluating the random agent twice with the same seeds produces identical metrics
+- [x] An evaluation stopped midway resumes without repeating finished Attempts
+- [x] Each Scoreboard row records: Contender, Map, Difficulty, seeds, Clear Rate, progress metric, observation class, cost (tokens and wall-clock time)
 - [ ] An MCP client (Claude Code) connects to the server, reads the screen, and moves the player
 - [ ] Every MCP tool returns Human-equivalent Observations only, checked tool by tool
-- [ ] The random agent's row is on the Scoreboard in `README.md`
+- [x] The random agent's row is on the Scoreboard in `README.md`
 - [ ] All five design questions are answered and recorded
 - [ ] `docs/learn/M1-ruler-and-socket.md` exists
 - [ ] The M2 brief is reviewed against what was built and corrected
