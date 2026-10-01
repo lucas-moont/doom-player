@@ -18,6 +18,7 @@ dependencies = [
 doom-check = "doom_player.check_env:main"
 doom-random = "doom_player.random_agent:main"
 doom-eval = "doom_player.eval:main"
+doom-scoreboard = "doom_player.scoreboard:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
