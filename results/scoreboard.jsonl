@@ -1,0 +1,1 @@
+{"contender": "random", "spec": "e1m1-v1", "map": "E1M1", "difficulty": 3, "seeds": [0, 1, 2, 3, 4], "tic_limit": 6300, "clear_rate": 0.0, "progress_mean": 0.2011, "progress_by_seed": [0.1895, 0.2253, 0.1473, 0.2753, 0.1681], "observation_class": "human-equivalent", "tokens_per_attempt": 0, "wall_clock_s_per_attempt": 1.6, "measured_on": "2026-10-01", "commit": "8c56426"}
