@@ -23,6 +23,19 @@ From `research/2026-09-28-state-of-the-art-doom-agents.md`:
 - Documented failure modes: no object permanence, getting stuck in corners.
 - Claude and Gemini progressed in Pokémon once given memory and tools, which suggests the Harness matters as much as the model.
 
+## What M1 built for this milestone
+
+Reviewed against the M1 code on 2026-10-01.
+
+- **The ruler:** Eval Spec `e1m1-v1` (`E1M1`, Difficulty 3, seeds 0-4, 6300 tics). Each Attempt is recorded with Clear and Progress, and Scoreboard rows are generated with `uv run doom-scoreboard`. The random agent's row is the floor: Clear Rate 0%, Progress 20%.
+- **The socket:** `uv run doom-mcp --contender <name> --spec e1m1-v1 --seed N` serves one Attempt through `look`, `act(buttons, tics)` and `automap`. When the Attempt ends, its record goes to the same `results/attempts/<name>/e1m1-v1.jsonl` as Door A. At 8 tics per action, an Attempt allows up to about 790 decisions.
+- **Gaps M2 must close:**
+  1. **An LLM launcher.** `run_eval` drives Door A only. M2 needs a loop that, for each missing seed, starts a headless CLI session (for example `claude -p` with an MCP config naming that seed's `doom-mcp` command) and waits for the record. Resuming works per seed; an Attempt cut off by a subscription limit restarts from its spawn.
+  2. **Tokens.** `AttemptRecord.tokens` exists and is `null`. Fill it from the CLI's usage report (for example `--output-format json`), and record the model name and version alongside it.
+  3. **Video and reasoning trace.** The MCP server does not record video yet. Add frame capture to `Game` and save the CLI transcript next to each record.
+  4. **Harness features as switches.** The minimum Harness is screen and actions only, so the server needs a way to leave the `automap` tool out (for example `--no-automap`). Each later feature is a flag, measured on its own.
+  5. **Failure analysis.** `progress.render` draws the Attempt's path over the distance field. It is a debugging visualisation, allowed by ADR 0002, and useful for sorting failures into categories.
+
 ## Steps
 
 1. Run the LLM with the minimum Harness: screen and actions, no memory. Evaluate. This is the floor.
