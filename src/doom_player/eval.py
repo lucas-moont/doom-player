@@ -80,7 +80,9 @@ def run_eval(
     subscription limit would; calling again resumes.
     """
     path = attempts_path(results_dir, contender.name, spec)
-    done = {r["seed"] for r in read_records(path)}
+    records = read_records(path)
+    check_rules(records, spec)
+    done = {r["seed"] for r in records}
     played = 0
     for seed in spec.seeds:
         if seed in done:
@@ -93,6 +95,17 @@ def run_eval(
         played += 1
         print(f"seed {seed}: progress {record['progress']}, cleared {record['cleared']}")
     return scoreboard_row(contender.name, spec, read_records(path))
+
+
+def check_rules(records: list[dict], spec: EvalSpec) -> None:
+    """Refuse to mix Attempts played under different rules in one file."""
+    for r in records:
+        played = (r["map"], r["difficulty"], r["tic_limit"])
+        if played != (spec.map, spec.difficulty, spec.tic_limit):
+            raise SystemExit(
+                f"seed {r['seed']} in {spec.name} was played as {played}, but the spec now says "
+                f"{(spec.map, spec.difficulty, spec.tic_limit)}. Give the changed spec a new name."
+            )
 
 
 def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict]) -> dict:

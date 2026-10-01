@@ -1,5 +1,7 @@
 """The Eval Suite repeats itself exactly and resumes without repeating Attempts."""
 
+from dataclasses import replace
+
 import pytest
 
 from doom_player.contenders import RandomContender
@@ -37,3 +39,10 @@ def test_scoreboard_keeps_one_row_per_contender_and_spec(tmp_path):
     write_row({**row, "contender": "other"}, tmp_path)
     rows = read_records(tmp_path / "scoreboard.jsonl")
     assert sorted(r["contender"] for r in rows) == ["other", "random"]
+
+
+def test_changed_rules_under_the_same_name_are_refused(tmp_path):
+    run_eval(RandomContender(), SHORT, tmp_path, stop_after=1)
+    longer = replace(SHORT, tic_limit=560)  # same name, different rules
+    with pytest.raises(SystemExit, match="new name"):
+        run_eval(RandomContender(), longer, tmp_path)
