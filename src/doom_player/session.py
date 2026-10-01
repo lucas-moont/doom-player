@@ -19,6 +19,7 @@ import numpy as np
 import vizdoom as vzd
 
 from doom_player.paths import WAD_PATH
+from doom_player.progress import ProgressMeter, distance_field
 
 # Numbers a human reads off the status bar. Key cards have no game variable;
 # they are visible in the screen's HUD like any other part of the status bar.
@@ -78,12 +79,12 @@ class AttemptSession:
     difficulty: int = 3
     seed: int = 0
     tic_limit: int = 6300
-    progress_meter: object | None = None  # doom_player.progress.ProgressMeter
     record: AttemptRecord = field(init=False)
 
     def __post_init__(self) -> None:
         if not WAD_PATH.exists():
             raise SystemExit(f"Original Maps need the purchased WAD at {WAD_PATH}")
+        self.progress_meter = ProgressMeter(distance_field(self.map))
         self.game = self._build_game()
         self.buttons = [b.name for b in self.game.get_available_buttons()]
         self.record = AttemptRecord(
@@ -156,10 +157,9 @@ class AttemptSession:
 
     def _measure(self) -> None:
         # Privileged Information, used for measurement only.
-        if self.progress_meter is not None:
-            x = self.game.get_game_variable(vzd.GameVariable.POSITION_X)
-            y = self.game.get_game_variable(vzd.GameVariable.POSITION_Y)
-            self.progress_meter.visit(x, y)
+        x = self.game.get_game_variable(vzd.GameVariable.POSITION_X)
+        y = self.game.get_game_variable(vzd.GameVariable.POSITION_Y)
+        self.progress_meter.visit(x, y)
 
     def _finish(self) -> None:
         r = self.record
@@ -168,8 +168,7 @@ class AttemptSession:
         r.died = self.game.is_player_dead()
         r.terminated = not r.truncated
         r.cleared = r.terminated and not r.died
-        if self.progress_meter is not None:
-            r.progress = 1.0 if r.cleared else round(self.progress_meter.progress, 4)
+        r.progress = 1.0 if r.cleared else round(self.progress_meter.progress, 4)
         r.wall_clock_s = round(time.perf_counter() - self._started, 2)
 
     def close(self) -> None:

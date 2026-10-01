@@ -10,6 +10,8 @@ dependencies = [
     "torch>=2.14",
     "wandb>=0.30",
     "moviepy>=2.2",
+    "omgifol>=0.5.1",
+    "pillow>=11",
 ]
 
 [project.scripts]
