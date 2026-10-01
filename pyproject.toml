@@ -12,6 +12,7 @@ dependencies = [
     "moviepy>=2.2",
     "omgifol>=0.5.1",
     "pillow>=11",
+    "mcp>=2.2",
 ]
 
 [project.scripts]
@@ -19,6 +20,7 @@ doom-check = "doom_player.check_env:main"
 doom-random = "doom_player.random_agent:main"
 doom-eval = "doom_player.eval:main"
 doom-scoreboard = "doom_player.scoreboard:main"
+doom-mcp = "doom_player.mcp_server:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]

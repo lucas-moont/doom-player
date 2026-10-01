@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "doom": {
+      "type": "stdio",
+      "command": "wsl",
+      "args": ["-e", "bash", "-lc", "UV_LINK_MODE=copy ~/.local/bin/uv run --quiet doom-mcp"]
+    }
+  }
+}
