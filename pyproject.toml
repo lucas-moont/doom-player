@@ -17,6 +17,7 @@ dependencies = [
 [project.scripts]
 doom-check = "doom_player.check_env:main"
 doom-random = "doom_player.random_agent:main"
+doom-eval = "doom_player.eval:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
