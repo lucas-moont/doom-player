@@ -12,7 +12,7 @@ No public record of one doing so was found when this project started (see `docs/
 
 ## Status
 
-Planning complete. No code yet. Current milestone: **M0 - Workshop**.
+M0 - Workshop done: a random agent plays `E1M1` on video, logged to a [public W&B project](https://wandb.ai/luks-monteiro-13-my-own/doom-player). Current milestone: **M1 - Ruler and socket**.
 
 ## Scoreboard
 

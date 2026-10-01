@@ -10,8 +10,8 @@ The order is deliberate: the LLM-only Contender comes before reinforcement learn
 
 | # | Name | Status | Concepts learned | Result to show | Brief |
 |---|---|---|---|---|---|
-| M0 | Workshop | next | WSL2, `uv`, Gymnasium API, ViZDoom, W&B | Video of a random agent on `E1M1` | `milestones/M0-workshop.md` |
-| M1 | Ruler and socket | planned | Evals, MCP, tool design | Eval Suite + Doom MCP server; random agent on the Scoreboard | `milestones/M1-ruler-and-socket.md` |
+| M0 | Workshop | done 2026-10-01 | WSL2, `uv`, Gymnasium API, ViZDoom, W&B | Video of a random agent on `E1M1` | `milestones/M0-workshop.md` |
+| M1 | Ruler and socket | next | Evals, MCP, tool design | Eval Suite + Doom MCP server; random agent on the Scoreboard | `milestones/M1-ruler-and-socket.md` |
 | M2 | LLM plays E1M1 | planned | Harness, memory, tool use, cost accounting | **Post 1**: how far an LLM gets, measured | `milestones/M2-llm-only.md` |
 | M3 | RL on Scenarios | planned | PPO, reward, training curves, Stable-Baselines3 | **Post 2**: agent learns to shoot and survive | written when M2 is done |
 | M4 | RL Clears E1M1 | planned | Reward shaping, recurrent memory (LSTM), curriculum by Difficulty | **Post 3**: first original Map Cleared by a learned Driver | written when M3 is done |
