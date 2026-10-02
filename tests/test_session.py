@@ -64,3 +64,23 @@ def test_rejects_bad_actions():
             session.press(["ATTACK"], 36)
     finally:
         session.close()
+
+
+def test_one_tic_steps_play_the_same_game_as_one_long_step():
+    # Smooth video steps one tic at a time; the game must not notice.
+    def record(on_frame):
+        contender = RandomContender()
+        session = AttemptSession(contender.name, seed=2, tic_limit=1400)
+        contender.reset(2, session.buttons)
+        try:
+            while not session.finished:
+                session.act(contender.act(session.observe()), 8, on_frame)
+        finally:
+            session.close()
+        r = session.record.to_dict()
+        r.pop("wall_clock_s")
+        return r
+
+    frames = []
+    assert record(frames.append) == record(None)
+    assert len(frames) >= 1400 - 8

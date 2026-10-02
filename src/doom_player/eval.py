@@ -149,7 +149,9 @@ def log_to_wandb(row: dict, records: list[dict], spec: EvalSpec) -> None:
         config={"contender": row["contender"], **asdict(spec)},
     ) as run:
         columns = list(records[0])
-        run.log({"attempts": wandb.Table(columns=columns, data=[[r[c] for c in columns] for r in records])})
+        # Tables hold scalars; nested values (an LLM's token breakdown) go in as JSON text.
+        cell = lambda v: json.dumps(v) if isinstance(v, dict | list) else v  # noqa: E731
+        run.log({"attempts": wandb.Table(columns=columns, data=[[cell(r.get(c)) for c in columns] for r in records])})
         run.summary.update({k: v for k, v in row.items() if not isinstance(v, list)})
 
 

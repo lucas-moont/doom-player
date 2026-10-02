@@ -21,6 +21,7 @@ doom-random = "doom_player.random_agent:main"
 doom-eval = "doom_player.eval:main"
 doom-scoreboard = "doom_player.scoreboard:main"
 doom-mcp = "doom_player.mcp_server:main"
+doom-llm-eval = "doom_player.llm_eval:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]

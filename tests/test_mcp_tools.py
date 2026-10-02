@@ -100,3 +100,51 @@ def test_end_of_attempt_is_reported_and_recorded(server):
     assert record["truncated"] and record["progress"] is not None  # measured, never returned
     _, texts = check_only_human_equivalent(call(mcp, "act", buttons=["ATTACK"], tics=1))
     assert "already over" in texts[0]
+
+
+@pytest.mark.parametrize(
+    ("automap_tool", "notes_tools", "expected"),
+    [
+        (False, False, ["act", "look"]),  # H0
+        (True, False, ["act", "automap", "look"]),  # H1
+        (True, True, ["act", "automap", "look", "read_notes", "write_note"]),  # H2
+    ],
+)
+def test_harness_rungs_expose_their_tools(tmp_path, automap_tool, notes_tools, expected):
+    session = AttemptSession("mcp-test", tic_limit=35)
+    try:
+        mcp = build_server(Game(session, tmp_path / "r.jsonl", None), automap_tool, notes_tools)
+        assert sorted(t.name for t in asyncio.run(mcp.list_tools())) == expected
+    finally:
+        session.close()
+
+
+def test_notes_return_exactly_what_was_written(tmp_path):
+    session = AttemptSession("mcp-test", tic_limit=35)
+    try:
+        mcp = build_server(Game(session, tmp_path / "r.jsonl", None), notes_tools=True)
+        assert call(mcp, "read_notes")[0].text == "No notes yet."
+        call(mcp, "write_note", text="Door east of the start room opens with USE.")
+        call(mcp, "write_note", text="Zombie behind the pillar.")
+        assert call(mcp, "read_notes")[0].text == (
+            "1. Door east of the start room opens with USE.\n2. Zombie behind the pillar."
+        )
+    finally:
+        session.close()
+
+
+def test_record_out_and_video(tmp_path):
+    session = AttemptSession("mcp-test", tic_limit=70)
+    video, record_out = tmp_path / "attempt.mp4", tmp_path / "record.json"
+    game = Game(session, tmp_path / "unused.jsonl", "e1m1-v1", record_out, video)
+    mcp = build_server(game)
+    call(mcp, "act", buttons=["MOVE_FORWARD"], tics=35)
+    call(mcp, "act", buttons=["TURN_LEFT"], tics=35)
+    record = json.loads(record_out.read_text())
+    assert record["spec"] == "e1m1-v1" and record["truncated"]
+    assert not (tmp_path / "unused.jsonl").exists()
+
+    import imageio_ffmpeg
+
+    frames, _ = imageio_ffmpeg.count_frames_and_secs(str(video))
+    assert frames >= 68  # one per tic, the final tic ends the Attempt

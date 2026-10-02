@@ -36,6 +36,46 @@ Reviewed against the M1 code on 2026-10-01.
   4. **Harness features as switches.** The minimum Harness is screen and actions only, so the server needs a way to leave the `automap` tool out (for example `--no-automap`). Each later feature is a flag, measured on its own.
   5. **Failure analysis.** `progress.render` draws the Attempt's path over the distance field. It is a debugging visualisation, allowed by ADR 0002, and useful for sorting failures into categories.
 
+## Decisions, settled with the owner on 2026-10-02
+
+| Decision | Choice |
+|---|---|
+| Model | Claude Opus 5.5 (`claude-opus-5-5`), through the Claude Code CLI subscription |
+| Harness rungs | **H0** screen and actions (`look`, `act`); **H1** H0 + `automap`; **H2** H1 + notes (`write_note`, `read_notes`). Contenders `opus-5.5-h0`, `-h1`, `-h2`, one Scoreboard row each. The "route summary" idea is dropped for budget |
+| Where the CLI runs | Inside Ubuntu, logged in once into its own config directory (`~/.config/doom-player-claude`), so the player never loads the owner's settings |
+| Budget | A one-Attempt pilot first; the owner decides the full evaluation from its numbers |
+
+The Harness is the CLI's own agent loop plus three switches: the MCP server's flags (`--no-automap`, `--notes`), the allowed tools, and a manual-level system prompt (`src/doom_player/harness.py`). `uv run doom-llm-eval --harness h0` runs it.
+
+## Open facts to test
+
+| # | Fact | Outcome |
+|---|---|---|
+| 1 | Claude Code installs in user space in Ubuntu, and a subscription login works with a dedicated `CLAUDE_CONFIG_DIR` | **Confirmed 2026-10-02**: native installer, version 2.1.287 in `~/.local/bin`; the owner logged in once with `CLAUDE_CONFIG_DIR=~/.config/doom-player-claude`; `claude -p` reports model `claude-opus-5-5` |
+| 2 | With `--tools ""` and `--strict-mcp-config`, the player sees only `mcp__doom__*` tools and none of the owner's instructions | **Confirmed 2026-10-02**, with one note. The session's tool list is `mcp__doom__act`, `mcp__doom__look` (H0); asked directly, the model reported no CLAUDE.md, memories, preferences or skills. The account attaches the owner's e-mail address as a context note to every session; it carries no game information |
+| 3 | `claude -p` keeps playing for hundreds of tool calls, compacting its context when it fills; or a resume loop is needed, and how often | **Confirmed 2026-10-02 (pilot)**: one CLI run played the whole Attempt, 331 tool calls in 332 turns, with no resume and no compaction. 19 transient API retries (`api_retry`, error `unknown`) recovered on their own |
+| 4 | `make_action(a, n)` and n calls of `make_action(a, 1)` give the same game (needed for smooth video) | **Confirmed 2026-10-02**: identical records, seed 2, 1400 tics, 8 tics per action (`tests/test_session.py`) |
+| 5 | The stream-json final result reports tokens, including image and cache tokens, and the exact model id | **Confirmed 2026-10-02 (pilot)**: the `init` event names `claude-opus-5-5`; the `result` event's `usage` splits input 500, output 63,373, cache creation 201,695 and cache read 24,317,332 tokens. Images are counted inside input and cache tokens; the transcript stores them as files |
+
+## Pilot, 2026-10-02
+
+One practice Attempt, H0, seed 0, `e1m1-v1` rules. The record is in `runs/` and is not a Scoreboard result.
+
+| Measure | Value |
+|---|---|
+| Outcome | Time ran out (`truncated`); not Cleared, did not die |
+| Progress | 0.184 (random agent: 0.190 on seed 0, 0.20 mean) |
+| Wall-clock | 30.6 min for 3 minutes of game time |
+| Decisions | 330 `act` calls, 19 tics each on average |
+| Tokens | 24.6 M: 24.3 M cache read, 0.2 M cache creation, 63 k output |
+| Resumes, compactions | 0, 0 |
+
+What it did: left the start area, climbed stairs, picked up armor and health bonuses (106% health, 103% armor at the end), never fired a shot. Its reasoning shows it searching for a door and concluding "everything here loops". Two of four sampled video frames face a wall at point-blank range.
+
+Cost of the full plan (3 rungs x 5 seeds, assuming H1 and H2 cost about the same): about 7.5 hours of play and 370 M tokens, almost all of them cache reads.
+
+**Owner's decision, 2026-10-02:** run the full plan (H0, H1, H2, 5 seeds each) in batches, one rung at a time, pausing at subscription limits. The pilot counts as H0's official seed 0: same rules, Harness and model, and the only code change since is closing the CLI's stdin. Its record was moved to `results/` with a note saying so.
+
 ## Steps
 
 1. Run the LLM with the minimum Harness: screen and actions, no memory. Evaluate. This is the floor.

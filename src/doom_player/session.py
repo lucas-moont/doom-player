@@ -129,27 +129,41 @@ class AttemptSession:
             tics_left=max(0, self.tic_limit - self._tics_played()),
         )
 
-    def act(self, pressed: list[bool], tics: int) -> float:
-        """Hold the given buttons for `tics` tics; return the reward."""
+    def act(self, pressed: list[bool], tics: int, on_frame=None) -> float:
+        """Hold the given buttons for `tics` tics; return the reward.
+
+        With `on_frame`, the game advances one tic at a time and the callback
+        gets every screen, for smooth video. It is the same game either way
+        (tested). Progress is measured once per action in both cases.
+        """
         if self.finished:
             raise RuntimeError("The Attempt is over")
         if len(pressed) != len(self.buttons):
             raise ValueError(f"expected {len(self.buttons)} button states")
         if not 1 <= tics <= MAX_TICS_PER_ACTION:
             raise ValueError(f"tics must be between 1 and {MAX_TICS_PER_ACTION}")
-        reward = self.game.make_action([float(p) for p in pressed], tics)
+        action = [float(p) for p in pressed]
+        if on_frame is None:
+            reward = self.game.make_action(action, tics)
+        else:
+            reward = 0.0
+            for _ in range(tics):
+                reward += self.game.make_action(action, 1)
+                if self.finished:
+                    break
+                on_frame(self.game.get_state().screen_buffer)
         self.record.actions += 1
         self._measure()
         if self.finished:
             self._finish()
         return reward
 
-    def press(self, names: list[str], tics: int) -> float:
+    def press(self, names: list[str], tics: int, on_frame=None) -> float:
         """Like `act`, with buttons given by name (as the MCP tools do)."""
         unknown = set(names) - set(self.buttons)
         if unknown:
             raise ValueError(f"unknown buttons: {sorted(unknown)}")
-        return self.act([b in names for b in self.buttons], tics)
+        return self.act([b in names for b in self.buttons], tics, on_frame)
 
     def _tics_played(self) -> int:
         # doom.cfg starts the episode clock at tic 1.
