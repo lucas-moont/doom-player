@@ -12,7 +12,7 @@ No public record of one doing so was found when this project started (see `docs/
 
 ## Status
 
-M0 - Workshop done: a random agent plays `E1M1` on video, logged to a [public W&B project](https://wandb.ai/luks-monteiro-13-my-own/doom-player). Current milestone: **M1 - Ruler and socket**.
+M1 - Ruler and socket done: the Eval Suite measures any Contender on `E1M1` (the random agent's row is below), and an LLM can play through the Doom MCP server (`uv run doom-mcp`, registered in `.mcp.json`). Current milestone: **M2 - LLM plays E1M1**.
 
 ## Scoreboard
 
