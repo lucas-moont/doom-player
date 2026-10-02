@@ -70,9 +70,11 @@ One practice Attempt, H0, seed 0, `e1m1-v1` rules. The record is in `runs/` and 
 | Tokens | 24.6 M: 24.3 M cache read, 0.2 M cache creation, 63 k output |
 | Resumes, compactions | 0, 0 |
 
-What it did: left the start area, climbed stairs, picked up armor and health bonuses (106% health, 103% armor at the end), never fired a shot. Its notes show it searching for a door and concluding "everything here loops". Two of four sampled video frames face a wall at point-blank range.
+What it did: left the start area, climbed stairs, picked up armor and health bonuses (106% health, 103% armor at the end), never fired a shot. Its reasoning shows it searching for a door and concluding "everything here loops". Two of four sampled video frames face a wall at point-blank range.
 
 Cost of the full plan (3 rungs x 5 seeds, assuming H1 and H2 cost about the same): about 7.5 hours of play and 370 M tokens, almost all of them cache reads.
+
+**Owner's decision, 2026-10-02:** run the full plan (H0, H1, H2, 5 seeds each) in batches, one rung at a time, pausing at subscription limits. The pilot counts as H0's official seed 0: same rules, Harness and model, and the only code change since is closing the CLI's stdin. Its record was moved to `results/` with a note saying so.
 
 ## Steps
 
