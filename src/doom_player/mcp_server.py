@@ -12,11 +12,17 @@ would notice. Progress is measured but never returned.
 
 Run with `uv run doom-mcp` (stdio). With `--spec`, the record goes to
 `results/` like any Door A Attempt; without it, the Attempt is a practice run
-and its record goes to `runs/mcp/` (gitignored).
+and its record goes to `runs/mcp/` (gitignored). `--record-out` sends it to a
+file of its own instead, for the LLM launcher to complete with token counts.
+
+Harness rungs switch tools on and off: `--no-automap` leaves `automap` out,
+`--notes` adds a notebook the player writes and reads. `--video` records the
+Attempt as it is played.
 """
 
 import argparse
 import io
+import json
 import threading
 from pathlib import Path
 
@@ -31,6 +37,9 @@ from doom_player.session import MAX_TICS_PER_ACTION, AttemptSession
 
 PRACTICE_DIR = REPO_ROOT / "runs" / "mcp"
 DEFAULT_TICS = 8
+MAX_NOTES = 50
+MAX_NOTE_CHARS = 500
+VIDEO_FPS = 35  # one frame per tic: real game speed
 
 
 def png(frame) -> Image:
@@ -42,14 +51,24 @@ def png(frame) -> Image:
 class Game:
     """One Attempt behind the tools; the tools never touch the session directly."""
 
-    def __init__(self, session: AttemptSession, record_path: Path, spec: str | None):
+    def __init__(
+        self,
+        session: AttemptSession,
+        record_path: Path,
+        spec: str | None,
+        record_out: Path | None = None,
+        video: Path | None = None,
+    ):
         self.session = session
         self.record_path = record_path
         self.spec = spec
+        self.record_out = record_out
         self.lock = threading.Lock()  # tool calls may arrive on different threads
         self.last_frame = None
         self.last_hud = None
         self.saved = False
+        self.notes: list[str] = []
+        self.video = VideoWriter(video) if video else None
 
     @property
     def over(self) -> bool:
@@ -81,7 +100,7 @@ class Game:
             if self.over:
                 return [self.status(["the Attempt is already over"])]
             before = self.session.observe().hud
-            self.session.press(buttons, tics)
+            self.session.press(buttons, tics, self.video.add if self.video else None)
             events = []
             if self.session.finished:
                 self._save()
@@ -91,12 +110,55 @@ class Game:
                 events = hud_events(before, obs.hud)
             return [png(self.last_frame), self.status(events)]
 
+    def write_note(self, text: str) -> str:
+        with self.lock:
+            text = text.strip()
+            if not text:
+                return "Empty note ignored."
+            if len(self.notes) >= MAX_NOTES:
+                return f"The notebook is full ({MAX_NOTES} notes)."
+            self.notes.append(text[:MAX_NOTE_CHARS])
+            return f"Saved as note {len(self.notes)}."
+
+    def read_notes(self) -> str:
+        with self.lock:
+            if not self.notes:
+                return "No notes yet."
+            return "\n".join(f"{i}. {note}" for i, note in enumerate(self.notes, 1))
+
     def _save(self) -> None:
         if not self.saved:
             record = self.session.record.to_dict()
-            append_record(self.record_path, {"spec": self.spec, **record} if self.spec else record)
+            if self.spec:
+                record = {"spec": self.spec, **record}
+            if self.record_out:
+                self.record_out.parent.mkdir(parents=True, exist_ok=True)
+                self.record_out.write_text(json.dumps(record))
+            else:
+                append_record(self.record_path, record)
+            if self.video:
+                self.video.close()
             self.session.close()
             self.saved = True
+
+
+class VideoWriter:
+    """Streams frames to an MP4 file, so a long Attempt never sits in memory."""
+
+    def __init__(self, path: Path):
+        import imageio_ffmpeg
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._writer = imageio_ffmpeg.write_frames(
+            str(path), (320, 240), fps=VIDEO_FPS, codec="libx264", pix_fmt_out="yuv420p", quality=7
+        )
+        self._writer.send(None)
+
+    def add(self, frame) -> None:
+        self._writer.send(frame.tobytes())
+
+    def close(self) -> None:
+        self._writer.close()
 
 
 def hud_events(before: dict, after: dict) -> list[str]:
@@ -116,7 +178,7 @@ def hud_events(before: dict, after: dict) -> list[str]:
     return events
 
 
-def build_server(game: Game) -> MCPServer:
+def build_server(game: Game, automap_tool: bool = True, notes_tools: bool = False) -> MCPServer:
     buttons = ", ".join(game.session.buttons)
     server = MCPServer(
         name="doom",
@@ -150,10 +212,24 @@ def build_server(game: Game) -> MCPServer:
         except ValueError as error:
             raise ToolError(str(error)) from error
 
-    @server.tool(structured_output=False)
-    def automap() -> list:
-        """See the automap, the map a player opens with Tab. Uses no game time."""
-        return game.automap()
+    if automap_tool:
+
+        @server.tool(structured_output=False)
+        def automap() -> list:
+            """See the automap, the map a player opens with Tab. Uses no game time."""
+            return game.automap()
+
+    if notes_tools:
+
+        @server.tool(structured_output=False)
+        def write_note(text: str) -> str:
+            """Write a note to your notebook, to read back later. Uses no game time."""
+            return game.write_note(text)
+
+        @server.tool(structured_output=False)
+        def read_notes() -> str:
+            """Read every note you have written, numbered. Uses no game time."""
+            return game.read_notes()
 
     return server
 
@@ -163,6 +239,10 @@ def main() -> None:
     parser.add_argument("--contender", default="mcp-practice", help="name on the Scoreboard")
     parser.add_argument("--spec", choices=sorted(SPECS), help="evaluate under this spec; needs --seed from it")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--no-automap", action="store_true", help="leave the automap tool out")
+    parser.add_argument("--notes", action="store_true", help="add the write_note and read_notes tools")
+    parser.add_argument("--video", type=Path, help="record the Attempt to this MP4 file")
+    parser.add_argument("--record-out", type=Path, help="write the record to this file instead")
     args = parser.parse_args()
 
     if args.spec:
@@ -175,7 +255,8 @@ def main() -> None:
         session = AttemptSession(args.contender, seed=args.seed)
         record_path = PRACTICE_DIR / f"{args.contender}.jsonl"
 
-    build_server(Game(session, record_path, args.spec)).run()
+    game = Game(session, record_path, args.spec, args.record_out, args.video)
+    build_server(game, automap_tool=not args.no_automap, notes_tools=args.notes).run()
 
 
 if __name__ == "__main__":
