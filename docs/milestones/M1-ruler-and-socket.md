@@ -51,11 +51,12 @@ Settle each with the owner, then record it in `CONTEXT.md` or an ADR as appropri
 
 | # | Fact | Outcome |
 |---|---|---|
-| 1 | The `mcp` SDK 2.x returns images as MCP image content | Untested (PR 2) |
+| 1 | The `mcp` SDK 2.x returns images as MCP image content | **Confirmed 2026-10-02**: over the `.mcp.json` command, `look` and `act` return `{"type": "image", "mimeType": "image/png"}` plus a text block with the status JSON; `automap` returns the image alone |
 | 2 | `omgifol` 0.5.1 reads `E1M1` from The Ultimate Doom WAD on Python 3.12 | **Confirmed 2026-10-01**: 470 vertexes, 486 linedefs; player 1 start `(1056, -3616)` matches ViZDoom's `POSITION_X/Y` at spawn; exit switch is linedef 326, action 11 |
-| 3 | Claude Code shows MCP image results to the model when the server runs in WSL and the client on Windows | Untested (PR 2) |
+| 3 | Claude Code shows MCP image results to the model when the server runs in WSL and the client on Windows | **Confirmed 2026-10-02**: after `/mcp` reconnected `doom`, Claude Code on Windows saw the `look`, `act` and `automap` images (the `E1M1` start room, the nukage pool, the explored automap) with the server in WSL |
 | 4 | `get_game_variable(POSITION_X)` works with position left out of the observation | **Confirmed 2026-10-01**: position read while `available_game_variables` holds only HUD numbers; `depth_buffer` and `labels_buffer` are `None` |
 | 5 | Turning the audio buffer off keeps seeded Attempts repeatable | **Confirmed 2026-10-01**: seed 0, 6300 tics, two runs identical (1575 actions, same final position); the Eval Suite's repeat test passes |
+| 6 | Claude Code's MCP connection survives the server's startup time | **Failed, then fixed 2026-10-02**: Claude Code timed out (`CONNECT_TIMEOUT`) because the first reply took about 27 s, of which 14.7 s was importing Python packages from the venv on `/mnt/c`. `.mcp.json` now sets `UV_PROJECT_ENVIRONMENT=$HOME/.cache/doom-player-mcp-venv`, a second venv on the Linux filesystem used only by the server; imports take 1.5 s and `look`, `act` and `automap` all answer within 4.5 s of launch. The first launch on a new machine builds that venv and may still time out once |
 
 ## Completion criteria
 
@@ -63,13 +64,19 @@ Settle each with the owner, then record it in `CONTEXT.md` or an ADR as appropri
 - [x] Evaluating the random agent twice with the same seeds produces identical metrics
 - [x] An evaluation stopped midway resumes without repeating finished Attempts
 - [x] Each Scoreboard row records: Contender, Map, Difficulty, seeds, Clear Rate, progress metric, observation class, cost (tokens and wall-clock time)
-- [ ] An MCP client (Claude Code) connects to the server, reads the screen, and moves the player
-- [ ] Every MCP tool returns Human-equivalent Observations only, checked tool by tool
+- [x] An MCP client (Claude Code) connects to the server, reads the screen, and moves the player
+- [x] Every MCP tool returns Human-equivalent Observations only, checked tool by tool
 - [x] The random agent's row is on the Scoreboard in `README.md`
-- [ ] All five design questions are answered and recorded
-- [ ] `docs/learn/M1-ruler-and-socket.md` exists
-- [ ] The M2 brief is reviewed against what was built and corrected
+- [x] All five design questions are answered and recorded
+- [x] `docs/learn/M1-ruler-and-socket.md` exists
+- [x] The M2 brief is reviewed against what was built and corrected
 
 ## Results
 
-Filled in when the milestone is done.
+Done 2026-10-02.
+
+- **The ruler.** `uv run doom-eval --contender <name>` evaluates under Eval Spec `e1m1-v1` (`E1M1`, Difficulty 3, seeds 0-4, 6300 tics) and writes one Scoreboard row. It repeats exactly and resumes per Attempt.
+- **The floor.** The random agent scores Clear Rate 0% and Progress 20%, at 0 tokens and 1.6 s per Attempt. Every later Contender is read against this row.
+- **The socket.** `uv run doom-mcp` serves one Attempt through `look`, `act(buttons, tics)` and `automap`. Claude Code connected through `.mcp.json`, read the screen, moved and turned the player, opened the automap, and received the error for an unknown button (`unknown buttons: ['JUMP']`). `act` holds buttons for 1 to 35 tics (default 8) and returns the new screen, the HUD numbers and events such as damage taken; `automap` returns the image only, as decided (design questions 4 and 5).
+- **Privileged Information used:** the player's position, read to compute Progress (`adr/0008-progress-metric.md`). It goes to the record only; `tests/test_mcp_tools.py` checks that no tool returns it.
+- **Surprise:** the server first timed out in Claude Code (open fact 6). Importing packages from `/mnt/c` cost 14.7 s; a venv on the Linux filesystem fixed it. This previews the full move planned before M3 (`adr/0004-wsl2-ubuntu.md`).

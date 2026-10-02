@@ -89,6 +89,22 @@ _Avoid_: scaffold, wrapper, framework
 The single fixed procedure that measures any Contender: same Maps, same seeds, same Difficulty, same metrics.
 _Avoid_: benchmark, tests
 
+**Eval Spec**:
+One named, frozen set of Eval Suite parameters: Map, Difficulty, seeds, and tic limit, such as `e1m1-v1`. Scoreboard rows are comparable only within one Eval Spec; changing any parameter means a new name.
+_Avoid_: config, settings, benchmark version
+
+**Attempt Session**:
+The referee of one Attempt: it fixes the rules, builds what the Contender may see, measures Progress, and writes the Attempt's record. Every Contender plays through one, whether called in a loop or driving it through MCP tools.
+_Avoid_: environment, episode runner, game wrapper
+
+**Observation class**:
+The label on a Scoreboard row saying what its Contender could see: `human-equivalent`, or `privileged` for teaching Contenders that see Privileged Information.
+_Avoid_: input type, observation mode
+
+**Progress**:
+The share of the walking distance from spawn to the exit that an Attempt closed at its best moment, from 0 to 1, and 1 for a Clear. Measured from Privileged Information; never shown to a Contender.
+_Avoid_: completion, distance travelled, coverage
+
 **Scoreboard**:
 The table of Eval Suite results, one row per Contender per Map.
 _Avoid_: leaderboard, results table

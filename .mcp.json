@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "doom": {
+      "type": "stdio",
+      "command": "wsl",
+      "args": ["-e", "bash", "-lc", "UV_PROJECT_ENVIRONMENT=$HOME/.cache/doom-player-mcp-venv UV_LINK_MODE=copy ~/.local/bin/uv run --quiet doom-mcp"]
+    }
+  }
+}
