@@ -170,9 +170,12 @@ def render(field: DistanceField, path: list[tuple[float, float]] = (), out: Path
     rgb[..., 1] = (180 * shade**2).astype(np.uint8)
     rgb[..., 2] = (90 * (1 - shade) * finite).astype(np.uint8)
     rgb[field.blocked] = (230, 230, 230)
-    for x, y in path:
-        row, col = field.cell_of(x, y)
-        rgb[row, col] = (0, 255, 255)
+    # Join consecutive positions, so a path sampled once per action reads as a line.
+    for (x0, y0), (x1, y1) in zip(path, path[1:] or path):
+        steps = max(1, int(math.hypot(x1 - x0, y1 - y0) / (CELL / 2)))
+        for t in np.linspace(0.0, 1.0, steps + 1):
+            row, col = field.cell_of(x0 + t * (x1 - x0), y0 + t * (y1 - y0))
+            rgb[row, col] = (0, 255, 255)
     image = Image.fromarray(rgb[::-1]).resize((shade.shape[1] * 2, shade.shape[0] * 2), Image.NEAREST)
     if out is not None:
         image.save(out)
