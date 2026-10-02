@@ -23,6 +23,7 @@ Attempt as it is played.
 import argparse
 import io
 import json
+import signal
 import threading
 from pathlib import Path
 
@@ -260,11 +261,22 @@ def main() -> None:
 
     game = Game(session, record_path, args.spec, args.record_out, args.video)
     server = build_server(game, automap_tool=not args.no_automap, notes_tools=args.notes)
-    if args.http:
-        # Outlives any one client connection, so a resumed CLI session finds the same game.
-        server.run("streamable-http", host="127.0.0.1", port=args.http)
-    else:
-        server.run()
+
+    def stop(signum, frame):
+        # uvicorn re-raises SIGTERM after its own shutdown, which would skip `finally`.
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, stop)
+    try:
+        if args.http:
+            # Outlives any one client connection, so a resumed CLI session finds the same game.
+            server.run("streamable-http", host="127.0.0.1", port=args.http)
+        else:
+            server.run()
+    finally:
+        # The ViZDoom engine ignores SIGTERM; close it ourselves or it outlives us.
+        if not game.saved:
+            session.close()
 
 
 if __name__ == "__main__":
