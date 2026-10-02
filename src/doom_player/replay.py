@@ -7,7 +7,7 @@ picture over the distance field (ADR 0002 allows Privileged Information in
 debugging visualisations), and it checks the transcript: the replayed record
 must match the stored one.
 
-Run with `uv run doom-replay results/attempts/opus-5.5-h0/e1m1-v1.jsonl --seed 1`.
+Run with `uv run doom-replay results/attempts/opus-5.5-h1/e1m1-v1.jsonl` (every seed) or add `--seed N`.
 """
 
 import argparse
@@ -44,34 +44,47 @@ def acts_from_transcript(path: Path) -> list[tuple[list[str], int]]:
 
 def replay(record: dict, transcript: Path) -> AttemptSession:
     session = AttemptSession(record["contender"], record["map"], record["difficulty"], record["seed"], record["tic_limit"])
+    reward = 0.0
     for buttons, tics in acts_from_transcript(transcript):
         if session.finished:
             break
-        session.press(buttons, tics)
+        # Tic by tic, so the clock is exact even when the exit is reached mid-action.
+        reward += session.press(buttons, tics, on_frame=lambda frame: None)
     session.close()
+    session.exit_reward = reward  # ViZDoom pays +1 only for reaching the exit alive
     return session
+
+
+def check(record: dict, out_dir: Path) -> bool:
+    session = replay(record, REPO_ROOT / record["transcript"])
+    r = session.record
+    fields = ("actions", "tics", "progress", "died", "cleared")
+    same = all(getattr(r, f) == record[f] for f in fields)
+    exit_ok = (session.exit_reward >= 1.0) == record["cleared"]
+    print(
+        f"seed {record['seed']}: {'MATCH' if same and exit_ok else 'MISMATCH'} | "
+        + ", ".join(f"{f} {record[f]}->{getattr(r, f)}" for f in fields)
+        + f", exit reward {session.exit_reward}"
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    render(session.progress_meter.field, session.progress_meter.path, out_dir / f"{record['contender']}-seed{record['seed']}.png")
+    return same and exit_ok
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("records", type=Path, help="a results/attempts/... JSON Lines file")
-    parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--out", type=Path, help="where to save the path picture")
+    parser.add_argument("--seed", type=int, help="only this seed (default: every record)")
+    parser.add_argument("--out-dir", type=Path, default=REPO_ROOT / "runs" / "paths", help="where path pictures go")
     args = parser.parse_args()
 
-    record = next(r for r in map(json.loads, args.records.read_text().splitlines()) if r["seed"] == args.seed)
-    session = replay(record, REPO_ROOT / record["transcript"])
-    replayed = session.record
-    same = (replayed.actions, replayed.tics, replayed.progress, replayed.died, replayed.cleared) == (
-        record["actions"], record["tics"], record["progress"], record["died"], record["cleared"]
-    )
-    print(f"replayed: actions {replayed.actions}, progress {replayed.progress}, died {replayed.died}")
-    print(f"stored:   actions {record['actions']}, progress {record['progress']}, died {record['died']}")
-    print("MATCH" if same else "MISMATCH")
-    out = args.out or REPO_ROOT / "runs" / "paths" / f"{record['contender']}-seed{args.seed}.png"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    render(session.progress_meter.field, session.progress_meter.path, out)
-    print(f"path picture: {out}")
+    records = [json.loads(line) for line in args.records.read_text().splitlines() if line.strip()]
+    if args.seed is not None:
+        records = [r for r in records if r["seed"] == args.seed]
+    results = [check(r, args.out_dir) for r in records]
+    print(f"{sum(results)} of {len(results)} records replay exactly")
+    if not all(results):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
