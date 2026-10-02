@@ -202,6 +202,7 @@ def play_llm_attempt(
                 run = subprocess.run(
                     claude_command(claude, harness, mcp_config, spec.tic_limit, resume),
                     cwd=play_dir, env=env, capture_output=True, text=True,
+                    stdin=subprocess.DEVNULL,  # otherwise the CLI waits 3 s for piped input
                 )
                 with transcript.open("a") as f:
                     f.write(run.stdout)
