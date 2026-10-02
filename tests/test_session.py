@@ -84,3 +84,13 @@ def test_one_tic_steps_play_the_same_game_as_one_long_step():
     frames = []
     assert record(frames.append) == record(None)
     assert len(frames) >= 1400 - 8
+
+
+def test_clock_matches_engine_while_playing():
+    session = AttemptSession("probe", tic_limit=140)
+    try:
+        session.press(["TURN_LEFT"], 30)
+        session.press([], 17)
+        assert session._clock == session._tics_played() == 47
+    finally:
+        session.close()

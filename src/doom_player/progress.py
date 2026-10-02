@@ -30,6 +30,10 @@ MAX_STEP = 24  # the highest ledge a player can walk up
 EXIT_ACTIONS = {11, 52}  # exit switch, walk-over exit (51 and 124 are secret exits)
 EXIT_REACH = 32  # cells this close to the exit line count as "at the exit"
 NO_SIDE = 0xFFFF
+PLAYER_HEIGHT = 56  # an opening lower than this is closed
+# Doors a player opens by pressing USE on them (DR/D1, normal, locked and fast).
+# A closed sector without one of these opens only from elsewhere, if at all.
+MANUAL_DOOR_ACTIONS = {1, 26, 27, 28, 31, 32, 33, 34, 117, 118}
 
 
 @dataclass
@@ -79,15 +83,22 @@ class ProgressMeter:
 
 
 def _walls(editor: omg.mapedit.MapEditor) -> list[tuple[float, float, float, float]]:
-    """Lines a player cannot cross: one-sided, impassable, or a ledge too high."""
+    """Lines a player cannot cross.
+
+    One-sided and impassable lines; ledges higher than a step; and closed
+    openings, unless the closed sector is a door the player can open with USE.
+    """
+    sector_of = lambda side: editor.sidedefs[side].sector  # noqa: E731
+    openable = {sector_of(line.back) for line in editor.linedefs if line.action in MANUAL_DOOR_ACTIONS and line.back != NO_SIDE}
     walls = []
     for line in editor.linedefs:
         a, b = editor.vertexes[line.vx_a], editor.vertexes[line.vx_b]
         blocking = line.back == NO_SIDE or line.impassable
         if not blocking:
-            front = editor.sectors[editor.sidedefs[line.front].sector]
-            back = editor.sectors[editor.sidedefs[line.back].sector]
-            blocking = abs(front.z_floor - back.z_floor) > MAX_STEP
+            sides = (sector_of(line.front), sector_of(line.back))
+            front, back = (editor.sectors[i] for i in sides)
+            closed = [i for i in sides if editor.sectors[i].z_ceil - editor.sectors[i].z_floor < PLAYER_HEIGHT]
+            blocking = abs(front.z_floor - back.z_floor) > MAX_STEP or any(i not in openable for i in closed)
         if blocking:
             walls.append((a.x, a.y, b.x, b.y))
     return walls
