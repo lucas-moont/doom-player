@@ -239,6 +239,9 @@ def main() -> None:
     parser.add_argument("--contender", default="mcp-practice", help="name on the Scoreboard")
     parser.add_argument("--spec", choices=sorted(SPECS), help="evaluate under this spec; needs --seed from it")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--difficulty", type=int, default=3, help="practice only; a spec fixes it")
+    parser.add_argument("--tic-limit", type=int, default=6300, help="practice only; a spec fixes it")
+    parser.add_argument("--http", type=int, metavar="PORT", help="serve on 127.0.0.1:PORT instead of stdio")
     parser.add_argument("--no-automap", action="store_true", help="leave the automap tool out")
     parser.add_argument("--notes", action="store_true", help="add the write_note and read_notes tools")
     parser.add_argument("--video", type=Path, help="record the Attempt to this MP4 file")
@@ -252,11 +255,16 @@ def main() -> None:
         session = AttemptSession(args.contender, spec.map, spec.difficulty, args.seed, spec.tic_limit)
         record_path = attempts_path(RESULTS_DIR, args.contender, spec)
     else:
-        session = AttemptSession(args.contender, seed=args.seed)
+        session = AttemptSession(args.contender, "E1M1", args.difficulty, args.seed, args.tic_limit)
         record_path = PRACTICE_DIR / f"{args.contender}.jsonl"
 
     game = Game(session, record_path, args.spec, args.record_out, args.video)
-    build_server(game, automap_tool=not args.no_automap, notes_tools=args.notes).run()
+    server = build_server(game, automap_tool=not args.no_automap, notes_tools=args.notes)
+    if args.http:
+        # Outlives any one client connection, so a resumed CLI session finds the same game.
+        server.run("streamable-http", host="127.0.0.1", port=args.http)
+    else:
+        server.run()
 
 
 if __name__ == "__main__":
