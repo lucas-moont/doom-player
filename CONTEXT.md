@@ -83,6 +83,10 @@ _Avoid_: task, objective, waypoint
 Everything wrapped around an LLM to let it play: the decision loop, the memory, and the tools it may call.
 _Avoid_: scaffold, wrapper, framework
 
+**Harness rung**:
+One step on a ladder of Harnesses that differ by a single feature, measured as its own Contender so the feature's effect can be read off the Scoreboard. M2's rungs: H0 (screen and actions), H1 (plus the automap), H2 (plus a notebook).
+_Avoid_: level, tier, variant, config
+
 ### Measuring
 
 **Eval Suite**:
