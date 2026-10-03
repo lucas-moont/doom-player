@@ -13,6 +13,9 @@ dependencies = [
     "omgifol>=0.5.1",
     "pillow>=11",
     "mcp>=2.2",
+    "stable-baselines3>=2.9",
+    "opencv-python-headless>=5.0.0.93",
+    "tensorboard>=2.21.0",
 ]
 
 [project.scripts]
@@ -23,12 +26,16 @@ doom-scoreboard = "doom_player.scoreboard:main"
 doom-mcp = "doom_player.mcp_server:main"
 doom-llm-eval = "doom_player.llm_eval:main"
 doom-replay = "doom_player.replay:main"
+doom-train = "doom_player.train:main"
 
 [dependency-groups]
 dev = [
     "matplotlib>=3.10",
     "pytest>=8",
 ]
+
+[tool.pytest.ini_options]
+markers = ["slow: trains a policy briefly; skip with -m 'not slow'"]
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]
