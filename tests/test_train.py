@@ -42,3 +42,11 @@ def test_training_cost_is_recorded_with_the_checkpoint(tmp_path):
     assert record["seed"] == 0
     assert record["steps"] >= 128
     assert record["wall_clock_s"] > 0
+    assert record["reward_shaping"] is None  # trained on the Scenario's own reward
+
+
+def test_reward_shaping_is_recorded_with_the_checkpoint(tmp_path):
+    config = TrainConfig(**TINY, kill_reward=100.0, health_penalty=1.0, out_dir=tmp_path)
+    checkpoint = train(config)
+
+    assert training_record(checkpoint)["reward_shaping"] == {"kill_reward": 100.0, "health_penalty": 1.0}

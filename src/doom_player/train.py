@@ -20,7 +20,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 
 from doom_player.paths import REPO_ROOT
-from doom_player.scenarios import SCENARIOS, make_scenario_env
+from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
 
 CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
 WANDB_PROJECT = "doom-player"
@@ -41,7 +41,18 @@ class TrainConfig:
     n_epochs: int = 4  # passes over each batch of experience per update
     clip_range: float = 0.1  # how far one update may move the policy
     ent_coef: float = 0.01  # bonus for keeping some randomness, so exploration never stops
+    # Extra training reward on top of the Scenario's own (`scenarios.RewardShaping`).
+    # Zero keeps the Scenario's reward unchanged. DeadlyCorridor needs them: on its
+    # own reward the policy learned to run forward and die (M3 brief, Results).
+    kill_reward: float = 0.0
+    health_penalty: float = 0.0
     out_dir: Path = CHECKPOINT_DIR
+
+    @property
+    def reward_shaping(self) -> dict | None:
+        if not (self.kill_reward or self.health_penalty):
+            return None
+        return {"kill_reward": self.kill_reward, "health_penalty": self.health_penalty}
 
 
 def train(config: TrainConfig) -> Path:
@@ -54,6 +65,9 @@ def train(config: TrainConfig) -> Path:
         seed=config.seed,
         vec_env_cls=vec_env_cls,
         env_kwargs={"scenario": config.scenario},
+        # Applied outside SB3's Monitor, so the logged curve stays the Scenario's own reward.
+        wrapper_class=RewardShaping if config.reward_shaping else None,
+        wrapper_kwargs=config.reward_shaping,
     )
     # Scenario rewards run from about -500 to +100 in Basic but -1 to +30 in
     # DefendCenter. Rescaling them to a running unit size keeps the value
@@ -95,6 +109,7 @@ def train(config: TrainConfig) -> Path:
             "seed": config.seed,
             "steps": model.num_timesteps,
             "wall_clock_s": wall_clock_s,
+            "reward_shaping": config.reward_shaping,
             "wandb_run": wandb.run.url if wandb.run else None,
         }
         _record_path(checkpoint).write_text(json.dumps(record, indent=2) + "\n")
@@ -116,9 +131,18 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--total-steps", type=int, default=TrainConfig.total_steps)
     parser.add_argument("--n-envs", type=int, default=TrainConfig.n_envs)
+    parser.add_argument("--kill-reward", type=float, default=0.0, help="extra training reward per kill")
+    parser.add_argument("--health-penalty", type=float, default=0.0, help="training cost per health point lost")
     args = parser.parse_args()
     checkpoint = train(
-        TrainConfig(args.scenario, args.seed, total_steps=args.total_steps, n_envs=args.n_envs)
+        TrainConfig(
+            args.scenario,
+            args.seed,
+            total_steps=args.total_steps,
+            n_envs=args.n_envs,
+            kill_reward=args.kill_reward,
+            health_penalty=args.health_penalty,
+        )
     )
     print(checkpoint)
 

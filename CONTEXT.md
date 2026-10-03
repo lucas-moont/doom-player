@@ -121,6 +121,10 @@ _Avoid_: success rate, win rate
 The score a Scenario defines for itself, summed over one Attempt: in `Basic`, +101 for the kill, -1 per tic and -5 per missed shot; in `DefendCenter`, +1 per kill and -1 for dying; in `DeadlyCorridor`, the distance moved along the corridor (computed from Privileged Information, so declared in Results) and -100 for dying. The Scenario table reports its mean over an Eval Spec's seeds.
 _Avoid_: score (alone), return
 
+**Reward shaping**:
+Extra reward added during a Training Run only, on top of the Scenario reward, to steer what the policy learns: for example, points per kill and a cost per health point lost. The Eval Suite never sees it; a checkpoint's `training.json` records it. Terms read from the engine are Privileged Information and are declared in Results.
+_Avoid_: custom reward, bonus (alone)
+
 **Training Run**:
 One training process, tracked as one entry in Weights & Biases.
 _Avoid_: run (alone), experiment, job

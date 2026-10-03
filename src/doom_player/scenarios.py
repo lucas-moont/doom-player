@@ -15,6 +15,7 @@ from gymnasium.wrappers import (
     ResizeObservation,
     TransformObservation,
 )
+from vizdoom import GameVariable
 from vizdoom import gymnasium_wrapper  # noqa: F401  (registers the Vizdoom* environments)
 
 SCENARIOS = {
@@ -42,3 +43,35 @@ def make_scenario_env(
     env = GrayscaleObservation(env)
     env = ResizeObservation(env, (FRAME_SIZE, FRAME_SIZE))
     return FrameStackObservation(env, FRAMES_STACKED)
+
+
+class RewardShaping(gym.Wrapper):
+    """Training only: add `kill_reward` per kill and charge `health_penalty` per health point lost.
+
+    Like a coach's extra points on top of the match score: the Scenario's own
+    reward stays in `info["raw_reward"]`, and the Eval Suite never sees the
+    extra points. Kills and health are read from the game engine, not shown to
+    the policy, so both terms are privileged and declared in Results (ADR 0002).
+    """
+
+    def __init__(self, env: gym.Env, kill_reward: float, health_penalty: float):
+        super().__init__(env)
+        self.kill_reward = kill_reward
+        self.health_penalty = health_penalty
+
+    def _read(self) -> tuple[float, float]:
+        game = self.unwrapped.game
+        # Health can drop below zero on the killing blow; count it from zero.
+        return game.get_game_variable(GameVariable.KILLCOUNT), max(0.0, game.get_game_variable(GameVariable.HEALTH))
+
+    def reset(self, **kwargs):
+        result = self.env.reset(**kwargs)
+        self._kills, self._health = self._read()
+        return result
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        kills, health = self._read()
+        bonus = self.kill_reward * (kills - self._kills) - self.health_penalty * max(0.0, self._health - health)
+        self._kills, self._health = kills, health
+        return obs, reward + bonus, terminated, truncated, {**info, "raw_reward": reward}
