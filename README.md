@@ -12,7 +12,7 @@ No public record of one doing so was found when this project started (see `docs/
 
 ## Status
 
-M1 - Ruler and socket done: the Eval Suite measures any Contender on `E1M1` (the random agent's row is below), and an LLM can play through the Doom MCP server (`uv run doom-mcp`, registered in `.mcp.json`). Current milestone: **M2 - LLM plays E1M1**.
+M2 - LLM plays E1M1 done: Claude Opus 5.5, playing through the Doom MCP server with Human-equivalent Observations only, Cleared `E1M1` in 1 of 5 Attempts with screen and actions, 4 of 5 with the automap, and 5 of 5 with the automap and a notebook (Scoreboard below; write-up in `docs/posts/01-llm-plays-doom.md`). Current milestone: **M3 - RL on Scenarios**.
 
 ## Scoreboard
 
