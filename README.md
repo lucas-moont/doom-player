@@ -37,6 +37,8 @@ Scenarios are small ViZDoom training levels, such as `basic` (one monster, shoot
 | ppo-seed0 | `basic` | 80.6 | 10 (0-9) | human-equivalent | 200,704 steps, 8 min | 0.45 s | `basic-v1` |
 | random | `basic` | -218.9 | 10 (0-9) | human-equivalent | none | 0.28 s | `basic-v1` |
 | ppo-seed0 | `defend-center` | 10.5 | 10 (0-9) | human-equivalent | 1,001,472 steps, 23 min | 1.6 s | `defend-center-v1` |
+| ppo-seed2 | `defend-center` | 10.3 | 10 (0-9) | human-equivalent | 1,001,472 steps, 22 min | 1.31 s | `defend-center-v1` |
+| ppo-seed1 | `defend-center` | 10.3 | 10 (0-9) | human-equivalent | 1,001,472 steps, 25 min | 1.78 s | `defend-center-v1` |
 | random | `defend-center` | 0.2 | 10 (0-9) | human-equivalent | none | 0.37 s | `defend-center-v1` |
 <!-- scenarios:end -->
 

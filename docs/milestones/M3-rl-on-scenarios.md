@@ -41,9 +41,9 @@ Written 2026-10-02, after M2. M2 showed that an LLM with an automap Clears `E1M1
 ## Completion criteria
 
 - [x] The working copy lives in the Linux filesystem, and the tests pass there
-- [ ] A trained PPO policy beats the random agent on `Basic` and on `DefendCenter`, measured by the Eval Suite over fixed seeds
+- [x] A trained PPO policy beats the random agent on `Basic` and on `DefendCenter`, measured by the Eval Suite over fixed seeds
 - [ ] Each Training Run is in W&B with its curve, config and seed
-- [ ] Training is repeated with at least 3 training seeds on one Scenario, to show the spread between seeds
+- [x] Training is repeated with at least 3 training seeds on one Scenario, to show the spread between seeds
 - [ ] A video of a trained agent exists for each Scenario
 - [ ] Observation class and any privileged reward terms are stated in Results
 - [ ] `docs/learn/M3-rl-on-scenarios.md` exists
@@ -70,4 +70,13 @@ Filled in when the milestone is done. Notes so far:
 
 - **Observation class**: `human-equivalent` for every Contender here. A Scenario Contender sees the stacked grayscale screen only, not even the HUD variables ViZDoom offers. No privileged reward terms: training uses each Scenario's built-in reward, rescaled by `VecNormalize`.
 - **First `Basic` Training Run collapsed** (W&B run `6e2x96q3`). With SB3's default PPO settings the curve rose to +78 by 84k steps, then fell to -300 (the policy stopped shooting and waited out the clock) and stayed there. Around 85k steps `approx_kl`, the size of one update, jumped to 0.5-0.77 against about 0.01 before, and the value loss rose from about 150 to about 2,000. Fix: RL Zoo's Atari settings (4 epochs, clip range 0.1, entropy bonus 0.01) and reward normalisation. The second run (`wdkr5yea`) kept `approx_kl` near 0.01 and held +80 to the end. The collapsed run's Attempts are kept in `results/discarded/`.
-- **`DefendCenter`, training seed 0** (W&B run `5gqzcemn`, 1,001,472 steps, 23 min): 10.5 mean reward on `defend-center-v1` (6 to 12 by seed) against random's 0.2. The Scenario gives +1 per kill (scripted in its WAD) and -1 on death (`death_penalty = 1` in `defend_the_center.cfg`), so an Attempt that ends in death scores kills minus one. Every Attempt here ended in death before the 2,100-tic timeout (the longest lasted 224 steps of 4 tics), so the policy kills about 11 monsters per Attempt (7 to 13) where random kills 0 to 2. Surviving longer, not only shooting, is what the policy has yet to learn. Videos: `videos/ppo-seed0-defend-center-seed*-episode-0.mp4`. Training seeds 1 and 2 use the same settings, run one after the other so their training times compare with seed 0's.
+- **`DefendCenter`, training seed 0** (W&B run `5gqzcemn`, 1,001,472 steps, 23 min): 10.5 mean reward on `defend-center-v1` (6 to 12 by seed) against random's 0.2. The Scenario gives +1 per kill (scripted in its WAD) and -1 on death (`death_penalty = 1` in `defend_the_center.cfg`), so an Attempt that ends in death scores kills minus one. Every Attempt here ended in death before the 2,100-tic timeout (the longest lasted 224 steps of 4 tics), so the policy kills about 11 monsters per Attempt (7 to 13) where random kills 0 to 2. Surviving longer, not only shooting, is what the policy has yet to learn. Videos: `videos/ppo-seed0-defend-center-seed*-episode-0.mp4`.
+- **`DefendCenter`, three training seeds** (same settings, 1M steps each, run one after the other so their training times compare):
+
+  | Training seed | W&B run | Training time | `defend-center-v1` reward | By eval seed |
+  |---|---|---|---|---|
+  | 0 | `5gqzcemn` | 23 min | 10.5 | 6 to 12 |
+  | 1 | `en65c3af` | 25 min | 10.3 | 8 to 13 |
+  | 2 | `9t6habd8` | 22 min | 10.3 | 9 to 12 |
+
+  The three policies end within 0.2 of each other (mean 10.4), against random's 0.2. The spread shows in the *path*, not the end: seed 1's training curve reached +9 by 300k steps and levelled off near +10 from 600k; seeds 0 and 2 reached +9 only around 700k to 900k. All three curves end between +9 and +10 and `approx_kl` stayed under 0.01. Seed 1 was first evaluated while seed 2 trained on the same machine (2.25 s per Attempt); re-evaluated alone it gave the same reward on every seed, at 1.78 s. The contended Attempts are kept in `results/discarded/`. Evaluation cost runs 1.3 to 1.8 s per Attempt across the three policies, all with video recording on.
