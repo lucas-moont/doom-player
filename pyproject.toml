@@ -25,7 +25,10 @@ doom-llm-eval = "doom_player.llm_eval:main"
 doom-replay = "doom_player.replay:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "matplotlib>=3.10",
+    "pytest>=8",
+]
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]
