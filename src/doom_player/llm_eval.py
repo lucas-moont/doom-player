@@ -259,7 +259,7 @@ def run_llm_eval(
             continue
         record = play_llm_attempt(harness, spec, seed, claude, runs_dir, video_dir)
         append_record(path, record)
-        print(f"seed {seed}: progress {record['progress']}, cleared {record['cleared']}, tokens {record['tokens']:,}")
+        print(f"seed {seed}: progress {record['progress']}, cleared {record['cleared']}, tokens {record['tokens']:,}", flush=True)
     records = read_records(path)
     if {r["seed"] for r in records} >= set(spec.seeds):
         return scoreboard_row(contender, spec, records)

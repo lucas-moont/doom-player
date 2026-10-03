@@ -22,9 +22,13 @@ doom-eval = "doom_player.eval:main"
 doom-scoreboard = "doom_player.scoreboard:main"
 doom-mcp = "doom_player.mcp_server:main"
 doom-llm-eval = "doom_player.llm_eval:main"
+doom-replay = "doom_player.replay:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "matplotlib>=3.10",
+    "pytest>=8",
+]
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]

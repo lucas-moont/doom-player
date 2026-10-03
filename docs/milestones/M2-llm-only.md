@@ -76,6 +76,18 @@ Cost of the full plan (3 rungs x 5 seeds, assuming H1 and H2 cost about the same
 
 **Owner's decision, 2026-10-02:** run the full plan (H0, H1, H2, 5 seeds each) in batches, one rung at a time, pausing at subscription limits. The pilot counts as H0's official seed 0: same rules, Harness and model, and the only code change since is closing the CLI's stdin. Its record was moved to `results/` with a note saying so.
 
+## Failure analysis
+
+Categories validated by the owner on 2026-10-02. Each failed Attempt was watched on video, read in its transcript, and replayed to draw its path (`uv run doom-replay`).
+
+| Category | Count | Attempts | What happens |
+|---|---|---|---|
+| Lost in loops near the start | 3 | H0 seeds 0, 1, 2 | Never takes the corridor north out of the start room; circles the start room and the west wing, which lie farther from the exit, until time runs out. Progress 0.18-0.27 |
+| Out of time on the right route | 1 | H0 seed 4 | Finds the north corridor and the room beyond, then runs out of time in the east rooms. Progress 0.75 |
+| Killed in combat | 1 | H1 seed 0 | On the right route, fights an imp in the room before the exit and dies at 7 health. Progress 0.89 |
+
+H2 had no failures. Best Attempt: H1 seed 1, Cleared in 1507 tics (43 s of game time), the clip in `docs/posts/media/best-attempt.mp4`.
+
 ## Steps
 
 1. Run the LLM with the minimum Harness: screen and actions, no memory. Evaluate. This is the floor.
@@ -92,15 +104,31 @@ Cost of the full plan (3 rungs x 5 seeds, assuming H1 and H2 cost about the same
 
 ## Completion criteria
 
-- [ ] Scoreboard rows exist for the minimum Harness and for each added feature, all from the standard Eval Suite
-- [ ] Each row reports tokens and wall-clock time per Attempt
-- [ ] Every failed Attempt is assigned to a failure category, and the counts are tabulated
-- [ ] A video of the best Attempt exists
-- [ ] The results section states the model name and version used
-- [ ] `docs/learn/M2-llm-only.md` exists
-- [ ] Post material is drafted in `docs/posts/01-llm-plays-doom.md` for the owner to edit and publish
-- [ ] The M3 brief is written
+- [x] Scoreboard rows exist for the minimum Harness and for each added feature, all from the standard Eval Suite
+- [x] Each row reports tokens and wall-clock time per Attempt
+- [x] Every failed Attempt is assigned to a failure category, and the counts are tabulated
+- [x] A video of the best Attempt exists
+- [x] The results section states the model name and version used
+- [x] `docs/learn/M2-llm-only.md` exists
+- [x] Post material is drafted in `docs/posts/01-llm-plays-doom.md` for the owner to edit and publish
+- [x] The M3 brief is written
 
 ## Results
 
-Filled in when the milestone is done.
+Done 2026-10-02. Model `claude-opus-5-5` (Claude Opus 5.5) through Claude Code 2.1.287, headless, isolated (ADR 0009). Eval Spec `e1m1-v1`: `E1M1`, Difficulty 3, seeds 0-4, 6300 tics.
+
+| Contender | Clear Rate | Progress | Clears' game time | Tokens per Attempt | Wall-clock per Attempt |
+|---|---|---|---|---|---|
+| `opus-5.5-h2` (+ automap + notes) | 100% | 1.00 | 58-143 s | 12.6 M | 11.7 min |
+| `opus-5.5-h1` (+ automap) | 80% | 0.98 | 43-97 s | 5.3 M | 7.0 min |
+| `opus-5.5-h0` (screen + actions) | 20% | 0.48 | 99 s | 24.4 M | 23.7 min |
+| `random` | 0% | 0.20 | - | 0 | 1.6 s |
+
+- **The automap is the jump.** Without it, three of five Attempts loop near the start until time runs out (see Failure analysis). With it, Attempts end sooner, which also cuts tokens to about a fifth.
+- **H1 versus H2 is one Attempt out of five**, which five seeds cannot separate from chance. The notebook may help; this data cannot say so.
+- **Prior work:** the 2024 GPT-4 study Cleared none of its `E1M1` runs at the same Difficulty. This setup differs in ways that favour the model (a paused game, actions up to one second long, the automap in H1/H2), all stated in the post.
+- **Verification:** all 15 records replay exactly from their transcripts (`uv run doom-replay`), and each of the 10 Clears earns ViZDoom's exit reward.
+- **Privileged Information used:** the player's position, for Progress only (`adr/0008-progress-metric.md`), plus debugging path pictures. No tool returned it.
+- **Corrections made along the way:** H0 seed 3 was first recorded with `tics -1` (ViZDoom resets its clock at the exit); the session now keeps its own clock, and the record was corrected by replay. The Progress rule for closed doors was tightened; no stored Progress changed.
+- **Total cost:** 15 Attempts, about 3.5 hours of play and 211 M tokens, almost all cache reads; no subscription limit was hit.
+- Videos: the W&B run `m2-attempt-videos`. Post draft: `docs/posts/01-llm-plays-doom.md`.

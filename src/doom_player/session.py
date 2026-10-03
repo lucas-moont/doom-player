@@ -143,15 +143,21 @@ class AttemptSession:
         if not 1 <= tics <= MAX_TICS_PER_ACTION:
             raise ValueError(f"tics must be between 1 and {MAX_TICS_PER_ACTION}")
         action = [float(p) for p in pressed]
+        before = self._tics_played()
         if on_frame is None:
             reward = self.game.make_action(action, tics)
+            ran = tics
         else:
-            reward = 0.0
+            reward, ran = 0.0, 0
             for _ in range(tics):
                 reward += self.game.make_action(action, 1)
+                ran += 1
                 if self.finished:
                     break
                 on_frame(self.game.get_state().screen_buffer)
+        # Reaching the exit resets ViZDoom's episode clock to 0, so keep our own:
+        # exact when stepping tic by tic, at most `tics - 1` over otherwise.
+        self._clock = min(before + ran, self.tic_limit)
         self.record.actions += 1
         self._measure()
         if self.finished:
@@ -177,7 +183,7 @@ class AttemptSession:
 
     def _finish(self) -> None:
         r = self.record
-        r.tics = self._tics_played()
+        r.tics = self._clock
         r.truncated = self.game.is_episode_timeout_reached()
         r.died = self.game.is_player_dead()
         r.terminated = not r.truncated

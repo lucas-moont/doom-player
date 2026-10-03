@@ -12,8 +12,8 @@ The order is deliberate: the LLM-only Contender comes before reinforcement learn
 |---|---|---|---|---|---|
 | M0 | Workshop | done 2026-10-01 | WSL2, `uv`, Gymnasium API, ViZDoom, W&B | Video of a random agent on `E1M1` | `milestones/M0-workshop.md` |
 | M1 | Ruler and socket | done 2026-10-02 | Evals, MCP, tool design | Eval Suite + Doom MCP server; random agent on the Scoreboard | `milestones/M1-ruler-and-socket.md` |
-| M2 | LLM plays E1M1 | next | Harness, memory, tool use, cost accounting | **Post 1**: how far an LLM gets, measured | `milestones/M2-llm-only.md` |
-| M3 | RL on Scenarios | planned | PPO, reward, training curves, Stable-Baselines3 | **Post 2**: agent learns to shoot and survive | written when M2 is done |
+| M2 | LLM plays E1M1 | done 2026-10-02 | Harness, memory, tool use, cost accounting | **Post 1**: how far an LLM gets, measured | `milestones/M2-llm-only.md` |
+| M3 | RL on Scenarios | next | PPO, reward, training curves, Stable-Baselines3 | **Post 2**: agent learns to shoot and survive | `milestones/M3-rl-on-scenarios.md` |
 | M4 | RL Clears E1M1 | planned | Reward shaping, recurrent memory (LSTM), curriculum by Difficulty | **Post 3**: first original Map Cleared by a learned Driver | written when M3 is done |
 | M5 | Maps with keys | planned | Intrinsic reward (RND), ablation | `E1M2` Cleared; with-and-without comparison | written when M4 is done |
 | M6 | Learning by watching | planned | Behavioural cloning, demo recording, fine-tuning | Does a human demo speed up learning? | written when M5 is done |
@@ -26,7 +26,7 @@ Set `Status` to `done` with the completion date when a milestone's completion cr
 
 ## Briefs are written one milestone ahead
 
-Only M0 to M2 have briefs. Each later brief is written when the milestone before it is done, because its design depends on what was measured. Writing a brief means: goal, concepts, steps, completion criteria, open facts to test.
+Only M0 to M3 have briefs. Each later brief is written when the milestone before it is done, because its design depends on what was measured. Writing a brief means: goal, concepts, steps, completion criteria, open facts to test.
 
 ## Pace
 
@@ -55,4 +55,4 @@ From `research/2026-09-28-state-of-the-art-doom-agents.md`:
 
 - Default reward on original Maps is 1 at the exit and 0 elsewhere. Sparse reward is the central technical problem from M4 on.
 - The closest public precedent Clears single Maps (`E1M2`, `MAP01`) with one trained agent per Map, in about 8 hours on an RTX 3080.
-- Published LLM-only attempts did not Clear `E1M1`. Those used 2024-2025 models, so M2 measures this again.
+- Published LLM-only attempts did not Clear `E1M1`. Those used 2024-2025 models, so M2 measured this again: Claude Opus 5.5 Cleared it in 1 of 5 Attempts with screen and actions only, 4 of 5 with the automap, and 5 of 5 with the automap and a notebook, with the game paused between decisions (`milestones/M2-llm-only.md`).
