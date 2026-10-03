@@ -45,7 +45,8 @@ class ScenarioSpec:
 # Ten seeds: a Scenario Attempt lasts seconds, so more seeds cost little and cut noise.
 BASIC = ScenarioSpec(name="basic-v1", scenario="basic", seeds=tuple(range(10)))
 DEFEND_CENTER = ScenarioSpec(name="defend-center-v1", scenario="defend-center", seeds=tuple(range(10)))
-SCENARIO_SPECS = {s.name: s for s in (BASIC, DEFEND_CENTER)}
+DEADLY_CORRIDOR = ScenarioSpec(name="deadly-corridor-v1", scenario="deadly-corridor", seeds=tuple(range(10)))
+SCENARIO_SPECS = {s.name: s for s in (BASIC, DEFEND_CENTER, DEADLY_CORRIDOR)}
 
 
 def play_scenario(

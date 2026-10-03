@@ -20,6 +20,9 @@ from vizdoom import gymnasium_wrapper  # noqa: F401  (registers the Vizdoom* env
 SCENARIOS = {
     "basic": "VizdoomBasic-v1",
     "defend-center": "VizdoomDefendCenter-v1",
+    # Its built-in reward follows the player's distance along the corridor,
+    # a privileged term: declared in the M3 Results (ADR 0002).
+    "deadly-corridor": "VizdoomDeadlyCorridor-v1",
 }
 
 FRAME_SIZE = 84

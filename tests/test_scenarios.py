@@ -9,8 +9,9 @@ import pytest
 from doom_player.scenarios import make_scenario_env
 
 
-def test_scenario_observation_is_a_stacked_grayscale_screen():
-    env = make_scenario_env("basic")
+@pytest.mark.parametrize("scenario", ["basic", "defend-center", "deadly-corridor"])
+def test_scenario_observation_is_a_stacked_grayscale_screen(scenario):
+    env = make_scenario_env(scenario)
     try:
         obs, _ = env.reset(seed=0)
         # 4 recent frames, each an 84x84 grayscale image, one byte per pixel
