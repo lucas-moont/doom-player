@@ -40,7 +40,7 @@ Written 2026-10-02, after M2. M2 showed that an LLM with an automap Clears `E1M1
 
 ## Completion criteria
 
-- [ ] The working copy lives in the Linux filesystem, and the tests pass there
+- [x] The working copy lives in the Linux filesystem, and the tests pass there
 - [ ] A trained PPO policy beats the random agent on `Basic` and on `DefendCenter`, measured by the Eval Suite over fixed seeds
 - [ ] Each Training Run is in W&B with its curve, config and seed
 - [ ] Training is repeated with at least 3 training seeds on one Scenario, to show the spread between seeds
@@ -54,11 +54,11 @@ Written 2026-10-02, after M2. M2 showed that an LLM with an automap Clears `E1M1
 
 | # | Fact | Source of doubt |
 |---|---|---|
-| 1 | Stable-Baselines3 2.9 accepts ViZDoom's Gymnasium environments once the observation is wrapped to a single image | ViZDoom returns a `Dict` observation; SB3's `CnnPolicy` expects an image `Box` |
-| 2 | Training throughput on the RTX 4050 inside WSL, in environment steps per second, with N parallel environments | Not measured; 7.6 GB of RAM in WSL limits how many ViZDoom processes run at once |
-| 3 | How many steps PPO needs on `Basic` and `DefendCenter` to beat random clearly | Published numbers use other hardware and settings |
-| 4 | W&B's SB3 integration logs curves and videos without extra code | Not tested in this project |
-| 5 | The move to the Linux filesystem keeps W&B login, the WAD copy and the MCP server working | The paths in `.mcp.json` and the workspace `CLAUDE.md` assume `/mnt/c` |
+| 1 | Stable-Baselines3 2.9 accepts ViZDoom's Gymnasium environments once the observation is wrapped to a single image | ViZDoom returns a `Dict` observation; SB3's `CnnPolicy` expects an image `Box`. **Confirmed 2026-10-03**: `make_scenario_env` keeps the screen only, grayscale, 84x84, 4 frames stacked, giving a `(4, 84, 84)` uint8 `Box`; SB3 trains on it without changes (`tests/test_train.py`). Resizing needs `opencv-python-headless` |
+| 2 | Training throughput on the RTX 4050 inside WSL, in environment steps per second, with N parallel environments | Not measured; 7.6 GB of RAM in WSL limits how many ViZDoom processes run at once. **Measured 2026-10-03** on `Basic`, 16k-step probes with SB3's default PPO: 340 steps/s with 4 environments, 504 with 8, 533 with 12; RAM in use stayed under 1 GB. 8 is the default. A full 200k-step Training Run with the final settings runs at about 415 steps/s (484 s) |
+| 3 | How many steps PPO needs on `Basic` and `DefendCenter` to beat random clearly | Published numbers use other hardware and settings. **`Basic`, 2026-10-03**: the curve passes random's level by about 30k steps and levels off near +80 by about 70k; 200k steps (8 min) gives 80.6 on `basic-v1` against random's -218.9. **`DefendCenter`, 2026-10-03**: the training curve (episode reward while still exploring) passes +2 by 50k steps, +5 by 150k, +7.5 by 450k and reaches about +9.8 at 1M, still creeping up; `approx_kl` stayed under 0.01 throughout. 1M steps (23 min) gives 10.5 on `defend-center-v1` against random's 0.2 |
+| 4 | W&B's SB3 integration logs curves and videos without extra code | Not tested in this project. **Partly confirmed 2026-10-03**: with `wandb.init(sync_tensorboard=True)` and SB3's `tensorboard_log`, every SB3 curve reaches W&B without a callback (needs the `tensorboard` package). Videos are not logged by training; `doom-eval --video` saves Attempt videos to `videos/` |
+| 5 | The move to the Linux filesystem keeps W&B login, the WAD copy and the MCP server working | The paths in `.mcp.json` and the workspace `CLAUDE.md` assume `/mnt/c`. **Confirmed 2026-10-03**: in `~/doom-player`, `doom-check` finds the WAD (MD5 matches), 30 tests pass in 25 s, W&B reads its credentials from `~/.netrc`, and the MCP server answers `initialize` in 1.5 s once `.mcp.json` runs it from `~/doom-player` |
 
 ## Rough size
 
@@ -66,4 +66,8 @@ Written 2026-10-02, after M2. M2 showed that an LLM with an automap Clears `E1M1
 
 ## Results
 
-Filled in when the milestone is done.
+Filled in when the milestone is done. Notes so far:
+
+- **Observation class**: `human-equivalent` for every Contender here. A Scenario Contender sees the stacked grayscale screen only, not even the HUD variables ViZDoom offers. No privileged reward terms: training uses each Scenario's built-in reward, rescaled by `VecNormalize`.
+- **First `Basic` Training Run collapsed** (W&B run `6e2x96q3`). With SB3's default PPO settings the curve rose to +78 by 84k steps, then fell to -300 (the policy stopped shooting and waited out the clock) and stayed there. Around 85k steps `approx_kl`, the size of one update, jumped to 0.5-0.77 against about 0.01 before, and the value loss rose from about 150 to about 2,000. Fix: RL Zoo's Atari settings (4 epochs, clip range 0.1, entropy bonus 0.01) and reward normalisation. The second run (`wdkr5yea`) kept `approx_kl` near 0.01 and held +80 to the end. The collapsed run's Attempts are kept in `results/discarded/`.
+- **`DefendCenter`, training seed 0** (W&B run `5gqzcemn`, 1,001,472 steps, 23 min): 10.5 mean reward on `defend-center-v1` (6 to 12 by seed) against random's 0.2. The Scenario gives +1 per kill (scripted in its WAD) and -1 on death (`death_penalty = 1` in `defend_the_center.cfg`), so an Attempt that ends in death scores kills minus one. Every Attempt here ended in death before the 2,100-tic timeout (the longest lasted 224 steps of 4 tics), so the policy kills about 11 monsters per Attempt (7 to 13) where random kills 0 to 2. Surviving longer, not only shooting, is what the policy has yet to learn. Videos: `videos/ppo-seed0-defend-center-seed*-episode-0.mp4`. Training seeds 1 and 2 use the same settings, run one after the other so their training times compare with seed 0's.

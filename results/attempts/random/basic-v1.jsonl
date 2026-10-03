@@ -1,0 +1,10 @@
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 0, "reward": -355.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.37}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 1, "reward": 95.0, "steps": 2, "observation_class": "human-equivalent", "wall_clock_s": 0.14}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 2, "reward": -370.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.31}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 3, "reward": -355.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.29}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 4, "reward": -360.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.28}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 5, "reward": -57.0, "steps": 35, "observation_class": "human-equivalent", "wall_clock_s": 0.2}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 6, "reward": -66.0, "steps": 36, "observation_class": "human-equivalent", "wall_clock_s": 0.32}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 7, "reward": -355.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.35}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 8, "reward": -375.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.32}
+{"spec": "basic-v1", "contender": "random", "scenario": "basic", "seed": 9, "reward": 9.0, "steps": 21, "observation_class": "human-equivalent", "wall_clock_s": 0.18}

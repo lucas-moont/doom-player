@@ -1,0 +1,10 @@
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 0, "reward": 83.0, "steps": 5, "observation_class": "human-equivalent", "wall_clock_s": 0.67, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 1, "reward": 95.0, "steps": 2, "observation_class": "human-equivalent", "wall_clock_s": 0.4, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 2, "reward": 75.0, "steps": 7, "observation_class": "human-equivalent", "wall_clock_s": 0.4, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 3, "reward": 67.0, "steps": 9, "observation_class": "human-equivalent", "wall_clock_s": 0.49, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 4, "reward": 79.0, "steps": 6, "observation_class": "human-equivalent", "wall_clock_s": 0.35, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 5, "reward": 79.0, "steps": 6, "observation_class": "human-equivalent", "wall_clock_s": 0.46, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 6, "reward": 91.0, "steps": 3, "observation_class": "human-equivalent", "wall_clock_s": 0.32, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 7, "reward": 75.0, "steps": 7, "observation_class": "human-equivalent", "wall_clock_s": 0.43, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 8, "reward": 83.0, "steps": 5, "observation_class": "human-equivalent", "wall_clock_s": 0.38, "checkpoint": "03f0106d8093"}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 9, "reward": 79.0, "steps": 6, "observation_class": "human-equivalent", "wall_clock_s": 0.56, "checkpoint": "03f0106d8093"}
