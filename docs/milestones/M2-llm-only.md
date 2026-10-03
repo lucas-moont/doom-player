@@ -76,6 +76,18 @@ Cost of the full plan (3 rungs x 5 seeds, assuming H1 and H2 cost about the same
 
 **Owner's decision, 2026-10-02:** run the full plan (H0, H1, H2, 5 seeds each) in batches, one rung at a time, pausing at subscription limits. The pilot counts as H0's official seed 0: same rules, Harness and model, and the only code change since is closing the CLI's stdin. Its record was moved to `results/` with a note saying so.
 
+## Failure analysis
+
+Categories validated by the owner on 2026-10-02. Each failed Attempt was watched on video, read in its transcript, and replayed to draw its path (`uv run doom-replay`).
+
+| Category | Count | Attempts | What happens |
+|---|---|---|---|
+| Lost in loops near the start | 3 | H0 seeds 0, 1, 2 | Never takes the corridor north out of the start room; circles the start room and the west wing, which lie farther from the exit, until time runs out. Progress 0.18-0.27 |
+| Out of time on the right route | 1 | H0 seed 4 | Finds the north corridor and the room beyond, then runs out of time in the east rooms. Progress 0.75 |
+| Killed in combat | 1 | H1 seed 0 | On the right route, fights an imp in the room before the exit and dies at 7 health. Progress 0.89 |
+
+H2 had no failures. Best Attempt: H1 seed 1, Cleared in 1507 tics (43 s of game time), the clip in `docs/posts/media/best-attempt.mp4`.
+
 ## Steps
 
 1. Run the LLM with the minimum Harness: screen and actions, no memory. Evaluate. This is the floor.
