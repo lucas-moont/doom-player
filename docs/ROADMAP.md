@@ -43,7 +43,7 @@ The owner works 2-3 hours on most days. Milestones are sized in working sessions
 
 The machine has one internal 477 GB NVMe SSD. All work happens there: the Ubuntu distro, the Python environment, the code, and any Training Run in progress.
 
-**Before the first Training Run (M3 at the latest), move the working copy into the Linux filesystem** (`~/doom-player` inside Ubuntu). Today it lives on the Windows drive at `/mnt/c/...`, where M0 measured file access at about 35 times slower. See `adr/0004-wsl2-ubuntu.md` for the numbers and the move steps.
+**The working copy lives in the Linux filesystem** (`~/doom-workspace/doom-player` inside Ubuntu), moved at the start of M3. The Windows drive (`/mnt/c/...`) measured about 35 times slower for file access. See `adr/0004-wsl2-ubuntu.md` for the numbers and the move.
 
 The owner has an external drive to be used as an archive only. When a milestone is marked `done`, its heavy outputs (checkpoints, Attempt videos, recorded demos) move to the archive, keeping on the SSD only what the next milestone needs. The archive is unplugged most of the time, so nothing a running process reads or writes may live on it.
 

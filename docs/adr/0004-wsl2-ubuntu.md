@@ -20,3 +20,9 @@ The move, when it happens:
 5. Push any unpushed work from the old copy first, then delete it so there is one working copy.
 
 The workspace `CLAUDE.md` assumes both repositories sit side by side in `Documents\Doom Player`. Update it in the same change.
+
+## Update 2026-10-03: moved
+
+Steps 1 to 4 were done at the start of M3. In `~/doom-player` the full test suite (30 tests) passes in 25 s, and the MCP server answers `initialize` 1.5 s after launch, so `.mcp.json` no longer needs the separate server venv from M1; it now runs `cd ~/doom-player && uv run doom-mcp`. W&B credentials live in `~/.netrc` and carried over unchanged. Step 5, deleting the old copy, is the owner's.
+
+The same day the whole workspace followed: `~/doom-workspace/` now holds the workspace `CLAUDE.md`, `doom/` (the owner's game files), this repository as `doom-player/` and the study repository as `doom-player-study/`, mirroring the old Windows folder. The owner keeps running Claude Code on Windows and opens the folders through `\\wsl$`. After moving a working copy, delete `.venv/` and run `uv sync`: the environment stores absolute paths.
