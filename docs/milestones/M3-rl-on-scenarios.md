@@ -46,9 +46,9 @@ Written 2026-10-02, after M2. M2 showed that an LLM with an automap Clears `E1M1
 - [x] Training is repeated with at least 3 training seeds on one Scenario, to show the spread between seeds
 - [x] A video of a trained agent exists for each Scenario
 - [x] Observation class and any privileged reward terms are stated in Results
-- [ ] `docs/learn/M3-rl-on-scenarios.md` exists
-- [ ] Post 2 material is drafted in `docs/posts/02-rl-learns-to-shoot.md`
-- [ ] The M4 brief is written
+- [x] `docs/learn/M3-rl-on-scenarios.md` exists
+- [x] Post 2 material is drafted in `docs/posts/02-rl-learns-to-shoot.md`
+- [x] The M4 brief is written
 
 ## Open facts to test
 
@@ -66,7 +66,7 @@ Written 2026-10-02, after M2. M2 showed that an LLM with an automap Clears `E1M1
 
 ## Results
 
-Filled in when the milestone is done. Notes so far:
+Done 2026-10-03. PPO from screen pixels beat the random agent on all three Scenarios: `basic-v1` 80.6 against -218.9, `defend-center-v1` 10.5 / 10.3 / 10.3 over three training seeds against 0.2, `deadly-corridor-v1` 298.1 (shaped training reward) against -94.8. No policy survives to the end of an Attempt on `DefendCenter` or `DeadlyCorridor`. The notes below are in the order they were measured.
 
 - **Observation class**: `human-equivalent` for every Contender here. A Scenario Contender sees the stacked grayscale screen only, not even the HUD variables ViZDoom offers. Training uses each Scenario's built-in reward, rescaled by `VecNormalize`. On `Basic` and `DefendCenter` that reward has no privileged terms. **`DeadlyCorridor`'s reward is privileged**: each step pays the change in the player's x position (toward the armour at the corridor's end), minus 100 on death. Checked 2026-10-03 by walking forward and back with `POSITION_X` read alongside: reward equalled the x change on every step (+7.42 for +7.42, -15.87 for -15.87). The policy never sees the position; only its reward is computed from it (ADR 0002).
 - **First `Basic` Training Run collapsed** (W&B run `6e2x96q3`). With SB3's default PPO settings the curve rose to +78 by 84k steps, then fell to -300 (the policy stopped shooting and waited out the clock) and stayed there. Around 85k steps `approx_kl`, the size of one update, jumped to 0.5-0.77 against about 0.01 before, and the value loss rose from about 150 to about 2,000. Fix: RL Zoo's Atari settings (4 epochs, clip range 0.1, entropy bonus 0.01) and reward normalisation. The second run (`wdkr5yea`) kept `approx_kl` near 0.01 and held +80 to the end. The collapsed run's Attempts are kept in `results/discarded/`.
