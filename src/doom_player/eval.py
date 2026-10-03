@@ -164,11 +164,22 @@ def _git_commit() -> str:
 
 
 def main() -> None:
+    # Imported here: Scenario support pulls in Stable-Baselines3 and torch,
+    # which a Map evaluation does not need.
+    from doom_player.scenario_eval import SCENARIO_SPECS, main_scenario
+
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--contender", required=True, choices=sorted(CONTENDERS))
-    parser.add_argument("--spec", default=STANDARD_E1M1.name, choices=sorted(SPECS))
+    parser.add_argument("--contender", required=True, choices=sorted({*CONTENDERS, "ppo"}))
+    parser.add_argument("--spec", default=STANDARD_E1M1.name, choices=sorted({*SPECS, *SCENARIO_SPECS}))
+    parser.add_argument("--checkpoint", type=Path, help="Scenarios only: the model.zip a `ppo` Contender plays from")
+    parser.add_argument("--video", action="store_true", help="Scenarios only: save each Attempt to videos/")
     args = parser.parse_args()
 
+    if args.spec in SCENARIO_SPECS:
+        main_scenario(args.contender, SCENARIO_SPECS[args.spec], args.checkpoint, args.video)
+        return
+    if args.contender not in CONTENDERS:
+        parser.error(f"{args.contender!r} plays Scenarios only")
     spec = SPECS[args.spec]
     contender = CONTENDERS[args.contender]()
     row = run_eval(contender, spec)

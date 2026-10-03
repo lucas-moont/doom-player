@@ -1,0 +1,10 @@
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 0, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 1.52}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 1, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 1.01}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 2, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.99}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 3, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 1.08}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 4, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.98}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 5, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.89}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 6, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.99}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 7, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.99}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 8, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.92}
+{"spec": "basic-v1", "contender": "ppo-seed0", "scenario": "basic", "seed": 9, "reward": -300.0, "steps": 75, "observation_class": "human-equivalent", "wall_clock_s": 0.88}

@@ -36,7 +36,7 @@ The data file holding the game's Maps and assets. `doom.wad` is the purchased or
 ### Playing
 
 **Attempt**:
-One playthrough of one Map, from spawn until exit, death, or timeout. This is what Gymnasium and ViZDoom call an "episode".
+One playthrough of one Map or Scenario, from spawn until exit, death, or timeout. This is what Gymnasium and ViZDoom call an "episode".
 _Avoid_: episode, run, game, rollout
 
 **Clear**:
@@ -94,7 +94,7 @@ The single fixed procedure that measures any Contender: same Maps, same seeds, s
 _Avoid_: benchmark, tests
 
 **Eval Spec**:
-One named, frozen set of Eval Suite parameters: Map, Difficulty, seeds, and tic limit, such as `e1m1-v1`. Scoreboard rows are comparable only within one Eval Spec; changing any parameter means a new name.
+One named, frozen set of Eval Suite parameters: Map, Difficulty, seeds, and tic limit, such as `e1m1-v1`; or, for a Scenario, the Scenario and seeds, such as `basic-v1`. Scoreboard rows are comparable only within one Eval Spec; changing any parameter means a new name.
 _Avoid_: config, settings, benchmark version
 
 **Attempt Session**:
@@ -110,16 +110,32 @@ The share of the walking distance from spawn to the exit that an Attempt closed 
 _Avoid_: completion, distance travelled, coverage
 
 **Scoreboard**:
-The table of Eval Suite results, one row per Contender per Map.
+The table of Eval Suite results, one row per Contender per Eval Spec. Map rows and Scenario rows are shown as two tables.
 _Avoid_: leaderboard, results table
 
 **Clear Rate**:
 The fraction of Attempts that are Clears, over the Eval Suite's seeds.
 _Avoid_: success rate, win rate
 
+**Scenario reward**:
+The score a Scenario defines for itself, summed over one Attempt: in `Basic`, +101 for the kill, -1 per tic and -5 per missed shot; in `DefendCenter`, +1 per kill and -1 for dying; in `DeadlyCorridor`, the distance moved along the corridor (computed from Privileged Information, so declared in Results) and -100 for dying. The Scenario table reports its mean over an Eval Spec's seeds.
+_Avoid_: score (alone), return
+
+**Reward shaping**:
+Extra reward added during a Training Run only, on top of the Scenario reward, to steer what the policy learns: for example, points per kill and a cost per health point lost. The Eval Suite never sees it; a checkpoint's `training.json` records it. Terms read from the engine are Privileged Information and are declared in Results.
+_Avoid_: custom reward, bonus (alone)
+
 **Training Run**:
 One training process, tracked as one entry in Weights & Biases.
 _Avoid_: run (alone), experiment, job
+
+**Training seed**:
+The seed of a Training Run: it fixes the network's starting weights and the games played while learning. Separate from an Eval Spec's seeds, which fix the games a trained policy is measured on. A PPO Contender is named after its training seed, such as `ppo-seed0`.
+_Avoid_: seed (alone, when both are in play)
+
+**Checkpoint**:
+The saved network a Training Run ends in (`model.zip`), with the run's cost beside it (`training.json`). A learned Contender plays from one.
+_Avoid_: model (alone), weights file, snapshot
 
 **Milestone**:
 One step of the roadmap, ending in a measurable result and a study guide.

@@ -1,0 +1,10 @@
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 0, "reward": 0.0, "steps": 76, "observation_class": "human-equivalent", "wall_clock_s": 0.29}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 1, "reward": 1.0, "steps": 107, "observation_class": "human-equivalent", "wall_clock_s": 0.35}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 2, "reward": 1.0, "steps": 95, "observation_class": "human-equivalent", "wall_clock_s": 0.34}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 3, "reward": -1.0, "steps": 90, "observation_class": "human-equivalent", "wall_clock_s": 0.5}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 4, "reward": 0.0, "steps": 88, "observation_class": "human-equivalent", "wall_clock_s": 0.33}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 5, "reward": 0.0, "steps": 78, "observation_class": "human-equivalent", "wall_clock_s": 0.29}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 6, "reward": 0.0, "steps": 86, "observation_class": "human-equivalent", "wall_clock_s": 0.34}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 7, "reward": 0.0, "steps": 93, "observation_class": "human-equivalent", "wall_clock_s": 0.56}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 8, "reward": 1.0, "steps": 90, "observation_class": "human-equivalent", "wall_clock_s": 0.36}
+{"spec": "defend-center-v1", "contender": "random", "scenario": "defend-center", "seed": 9, "reward": 0.0, "steps": 101, "observation_class": "human-equivalent", "wall_clock_s": 0.36}
