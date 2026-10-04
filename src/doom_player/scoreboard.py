@@ -21,6 +21,7 @@ HEADER = [
     "Progress",
     "Seeds",
     "Observation class",
+    "Training cost",
     "Cost per Attempt",
     "Spec",
 ]
@@ -69,6 +70,7 @@ def table(rows: list[dict]) -> str:
                 f"{r['progress_mean']:.0%}",
                 seeds_cell(r["seeds"]),
                 r["observation_class"],
+                training_cost(r),
                 cost(r),
                 f"`{r['spec']}`",
             ]
