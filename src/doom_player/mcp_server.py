@@ -35,12 +35,12 @@ from PIL import Image as PILImage
 from doom_player.eval import RESULTS_DIR, SPECS, append_record, attempts_path
 from doom_player.paths import REPO_ROOT
 from doom_player.session import MAX_TICS_PER_ACTION, AttemptSession
+from doom_player.video import VideoWriter
 
 PRACTICE_DIR = REPO_ROOT / "runs" / "mcp"
 DEFAULT_TICS = 8
 MAX_NOTES = 50
 MAX_NOTE_CHARS = 500
-VIDEO_FPS = 35  # one frame per tic: real game speed
 
 
 def png(frame) -> Image:
@@ -142,24 +142,6 @@ class Game:
             self.session.close()
             self.saved = True
 
-
-class VideoWriter:
-    """Streams frames to an MP4 file, so a long Attempt never sits in memory."""
-
-    def __init__(self, path: Path):
-        import imageio_ffmpeg
-
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._writer = imageio_ffmpeg.write_frames(
-            str(path), (320, 240), fps=VIDEO_FPS, codec="libx264", pix_fmt_out="yuv420p", quality=7
-        )
-        self._writer.send(None)
-
-    def add(self, frame) -> None:
-        self._writer.send(frame.tobytes())
-
-    def close(self) -> None:
-        self._writer.close()
 
 
 def hud_events(before: dict, after: dict) -> list[str]:

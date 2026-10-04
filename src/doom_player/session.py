@@ -129,6 +129,15 @@ class AttemptSession:
             tics_left=max(0, self.tic_limit - self._tics_played()),
         )
 
+    def screen(self):
+        """The screen alone, for a learned Driver: `observe` without the automap copy, every step."""
+        return self.game.get_state().screen_buffer
+
+    @property
+    def progress(self) -> float:
+        """Progress so far; a Clear counts as 1. Training reward and the record read this one rule."""
+        return 1.0 if self.record.cleared else self.progress_meter.progress
+
     def act(self, pressed: list[bool], tics: int, on_frame=None) -> float:
         """Hold the given buttons for `tics` tics; return the reward.
 
@@ -188,7 +197,7 @@ class AttemptSession:
         r.died = self.game.is_player_dead()
         r.terminated = not r.truncated
         r.cleared = r.terminated and not r.died
-        r.progress = 1.0 if r.cleared else round(self.progress_meter.progress, 4)
+        r.progress = round(self.progress, 4)
         r.wall_clock_s = round(time.perf_counter() - self._started, 2)
 
     def close(self) -> None:

@@ -16,9 +16,10 @@ from datetime import date
 from pathlib import Path
 
 from doom_player.contenders import CONTENDERS
-from doom_player.contenders.base import Contender
+from doom_player.contenders.base import Contender, WholeAttemptContender
 from doom_player.paths import REPO_ROOT
 from doom_player.session import AttemptSession
+from doom_player.video import VideoWriter
 
 RESULTS_DIR = REPO_ROOT / "results"
 WANDB_PROJECT = "doom-player"
@@ -57,31 +58,33 @@ def append_record(path: Path, record: dict) -> None:
         f.write(json.dumps(record) + "\n")
 
 
-def play(contender: Contender, session: AttemptSession) -> dict:
+def play(contender: Contender, session: AttemptSession, on_frame=None) -> dict:
     """Door A: the suite's loop asks the Contender for every decision."""
     contender.reset(session.seed, session.buttons)
     try:
         while not session.finished:
-            session.act(contender.act(session.observe()), contender.tics_per_action)
+            session.act(contender.act(session.observe()), contender.tics_per_action, on_frame)
     finally:
         session.close()
     return session.record.to_dict()
 
 
 def run_eval(
-    contender: Contender,
+    contender: Contender | WholeAttemptContender,
     spec: EvalSpec = STANDARD_E1M1,
     results_dir: Path = RESULTS_DIR,
     stop_after: int | None = None,
+    video_dir: Path | None = None,
 ) -> dict | None:
     """Play the spec's missing Attempts; return the Scoreboard row once all are done.
 
     `stop_after` ends the run early after that many new Attempts, the way a
-    subscription limit would; calling again resumes.
+    subscription limit would; calling again resumes. With `video_dir`, every
+    Attempt played is also filmed, one frame per tic.
     """
     path = attempts_path(results_dir, contender.name, spec)
     records = read_records(path)
-    check_rules(records, spec)
+    check_rules(records, spec, contender.training)
     done = {r["seed"] for r in records}
     played = 0
     for seed in spec.seeds:
@@ -89,16 +92,25 @@ def run_eval(
             continue
         if stop_after is not None and played == stop_after:
             return None
-        session = AttemptSession(contender.name, spec.map, spec.difficulty, seed, spec.tic_limit)
-        record = play(contender, session)
-        append_record(path, {"spec": spec.name, **record})
+        video = VideoWriter(video_dir / f"{contender.name}-{spec.name}-seed{seed}.mp4") if video_dir else None
+        on_frame = video.add if video else None
+        try:
+            if isinstance(contender, WholeAttemptContender):
+                record = contender.play_attempt(spec, seed, on_frame)
+            else:
+                session = AttemptSession(contender.name, spec.map, spec.difficulty, seed, spec.tic_limit)
+                record = play(contender, session, on_frame)
+        finally:
+            if video:
+                video.close()
+        append_record(path, {"spec": spec.name, **record, "checkpoint": checkpoint_id(contender.training)})
         played += 1
         print(f"seed {seed}: progress {record['progress']}, cleared {record['cleared']}")
-    return scoreboard_row(contender.name, spec, read_records(path))
+    return scoreboard_row(contender.name, spec, read_records(path), contender.training)
 
 
-def check_rules(records: list[dict], spec: EvalSpec) -> None:
-    """Refuse to mix Attempts played under different rules in one file."""
+def check_rules(records: list[dict], spec: EvalSpec, training: dict | None = None) -> None:
+    """Refuse to mix Attempts played under different rules, or by different policies, in one file."""
     for r in records:
         played = (r["map"], r["difficulty"], r["tic_limit"])
         if played != (spec.map, spec.difficulty, spec.tic_limit):
@@ -106,9 +118,34 @@ def check_rules(records: list[dict], spec: EvalSpec) -> None:
                 f"seed {r['seed']} in {spec.name} was played as {played}, but the spec now says "
                 f"{(spec.map, spec.difficulty, spec.tic_limit)}. Give the changed spec a new name."
             )
+        check_checkpoint(r, spec.name, training)
 
 
-def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict]) -> dict:
+def checkpoint_id(training: dict | None) -> str | None:
+    """Which Training Run a learned Contender comes from; None for an untrained one."""
+    return training["run_id"] if training else None
+
+
+def check_checkpoint(record: dict, spec_name: str, training: dict | None) -> None:
+    """Refuse an Attempt played by another checkpoint under the same Contender name (Maps and Scenarios)."""
+    # Records from before M4 (Maps) have no checkpoint field: nothing was trained.
+    if record.get("checkpoint") != checkpoint_id(training):
+        raise SystemExit(
+            f"seed {record['seed']} in {spec_name} was played by another checkpoint "
+            f"({record.get('checkpoint')}) under the name {record['contender']!r}. Move its Attempts file "
+            "aside before measuring the new checkpoint."
+        )
+
+
+def training_columns(training: dict | None) -> dict:
+    """The Scoreboard's training-cost fields, for Map and Scenario rows alike."""
+    return {
+        "training_steps": training["steps"] if training else None,
+        "training_wall_clock_s": training["wall_clock_s"] if training else None,
+    }
+
+
+def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict], training: dict | None = None) -> dict:
     by_seed = {r["seed"]: r for r in records}
     records = [by_seed[s] for s in spec.seeds]
     n = len(records)
@@ -126,6 +163,7 @@ def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict]) -> dict:
         "observation_class": records[0]["observation_class"],
         "tokens_per_attempt": round(sum(tokens) / n) if tokens else 0,
         "wall_clock_s_per_attempt": round(sum(r["wall_clock_s"] for r in records) / n, 1),
+        **training_columns(training),
         "measured_on": date.today().isoformat(),
         "commit": _git_commit(),
     }
@@ -171,18 +209,25 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--contender", required=True, choices=sorted({*CONTENDERS, "ppo"}))
     parser.add_argument("--spec", default=STANDARD_E1M1.name, choices=sorted({*SPECS, *SCENARIO_SPECS}))
-    parser.add_argument("--checkpoint", type=Path, help="Scenarios only: the model.zip a `ppo` Contender plays from")
-    parser.add_argument("--video", action="store_true", help="Scenarios only: save each Attempt to videos/")
+    parser.add_argument("--checkpoint", type=Path, help="the model.zip a `ppo` Contender plays from")
+    parser.add_argument("--video", action="store_true", help="save each Attempt to videos/")
     args = parser.parse_args()
+    if args.checkpoint and args.contender != "ppo":
+        parser.error(f"{args.contender!r} plays without a checkpoint")
 
     if args.spec in SCENARIO_SPECS:
         main_scenario(args.contender, SCENARIO_SPECS[args.spec], args.checkpoint, args.video)
         return
-    if args.contender not in CONTENDERS:
-        parser.error(f"{args.contender!r} plays Scenarios only")
     spec = SPECS[args.spec]
-    contender = CONTENDERS[args.contender]()
-    row = run_eval(contender, spec)
+    if args.contender == "ppo":
+        if args.checkpoint is None:
+            parser.error("--contender ppo needs --checkpoint checkpoints/<run>/model.zip")
+        from doom_player.contenders.ppo import PPOMapContender
+
+        contender = PPOMapContender(args.checkpoint)
+    else:
+        contender = CONTENDERS[args.contender]()
+    row = run_eval(contender, spec, video_dir=REPO_ROOT / "videos" if args.video else None)
     write_row(row)
     log_to_wandb(row, read_records(attempts_path(RESULTS_DIR, contender.name, spec)), spec)
     print(json.dumps(row, indent=2))

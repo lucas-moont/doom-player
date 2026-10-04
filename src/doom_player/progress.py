@@ -16,7 +16,7 @@ Simplifications are listed in ADR 0008.
 import heapq
 import math
 from dataclasses import dataclass, field
-from functools import cache
+from functools import cache, cached_property
 from pathlib import Path
 
 import numpy as np
@@ -59,7 +59,7 @@ class DistanceField:
                 return float(window[np.isfinite(window)].min())
         return math.inf
 
-    @property
+    @cached_property  # read on every step while training; it never changes
     def start_distance(self) -> float:
         return self.distance_at(*self.start)
 

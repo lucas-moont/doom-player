@@ -1,72 +1,125 @@
-"""Train a PPO policy on one Scenario: one Training Run, one W&B run, one checkpoint.
+"""Train a PPO policy on one Scenario or one original Map: one Training Run, one W&B run, one checkpoint.
 
-Run with `uv run doom-train --scenario basic --seed 0`. Several copies of the
-Scenario play in parallel processes and feed one CNN policy on the GPU.
+Run with `uv run doom-train --scenario basic --seed 0`, or on a Map with
+`uv run doom-train --map E1M1 --difficulty 3 --seed 0`. Several copies of the
+game play in parallel processes and feed one CNN policy on the GPU.
 Stable-Baselines3 writes its training curves (episode reward, episode length,
 losses) in TensorBoard format; W&B copies them into the run.
 Set `WANDB_MODE=offline` to keep the log on disk.
 """
 
 import argparse
+import re
 import json
 import time
 import uuid
 from dataclasses import asdict, dataclass
+from functools import partial
 from pathlib import Path
 
 import wandb
+from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 
+from doom_player.maps import ProgressShaping, make_map_env
 from doom_player.paths import REPO_ROOT
 from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
 
 CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
 WANDB_PROJECT = "doom-player"
+SCENARIO_SHAPING = ("kill_reward", "health_penalty")
+MAP_SHAPING = ("progress_reward", "death_penalty")
 
 
 @dataclass(frozen=True)
 class TrainConfig:
-    scenario: str
-    seed: int  # the training seed: network weights and the games played while learning
+    scenario: str | None = None  # a Scenario, or...
+    seed: int = 0  # the training seed: network weights and the games played while learning
+    map: str | None = None  # ...an original Map, at `difficulty`
+    difficulty: int = 3
     total_steps: int = 200_000
     n_envs: int = 8
     n_steps: int = 256  # steps each copy plays before one PPO update
     batch_size: int = 256
     # The next four follow RL Zoo's PPO settings for Atari, the closest pixel-input
     # benchmark. SB3's defaults (10 epochs, clip 0.2, no entropy bonus) made the
-    # first Basic run learn, then collapse at 100k steps (M3 brief, Results).
+    # first Basic Training Run learn, then collapse at 100k steps (M3 brief, Results).
     learning_rate: float = 2.5e-4
     n_epochs: int = 4  # passes over each batch of experience per update
     clip_range: float = 0.1  # how far one update may move the policy
     ent_coef: float = 0.01  # bonus for keeping some randomness, so exploration never stops
-    # Extra training reward on top of the Scenario's own (`scenarios.RewardShaping`).
-    # Zero keeps the Scenario's reward unchanged. DeadlyCorridor needs them: on its
+    # Extra training reward on top of the game's own. Zero keeps it unchanged.
+    # Scenarios (`scenarios.RewardShaping`): DeadlyCorridor needed them, since on its
     # own reward the policy learned to run forward and die (M3 brief, Results).
     kill_reward: float = 0.0
     health_penalty: float = 0.0
+    # Maps (`maps.ProgressShaping`): the exit alone pays too rarely to learn from.
+    progress_reward: float = 0.0
+    death_penalty: float = 0.0
+    recurrent: bool = False  # an LSTM policy (RecurrentPPO): a memory of the last seconds
+    init_from: Path | None = None  # continue from this checkpoint, e.g. a lower Difficulty
+    checkpoint_every: int = 0  # steps between intermediate checkpoints; 0 for none
+    label: str = ""  # tells settings apart in folder and Contender names
     out_dir: Path = CHECKPOINT_DIR
+
+    def __post_init__(self):
+        if (self.scenario is None) == (self.map is None):
+            raise ValueError("train on a scenario or on a map, not both")
+        other_game = MAP_SHAPING if self.scenario else SCENARIO_SHAPING
+        if any(getattr(self, name) for name in other_game):
+            raise ValueError(f"{', '.join(other_game)} apply to {'Maps' if self.scenario else 'Scenarios'} only")
+        if self.map and not re.fullmatch(r"E\dM\d|MAP\d\d", self.map):
+            raise ValueError(f"{self.map!r} is not a Map name such as E1M1 or MAP01")
+
+    @property
+    def checkpoint_folder(self) -> str:
+        """Game, training seed and label, such as `e1m1-d3-seed0-shaped`; also names the W&B run."""
+        game = self.scenario if self.scenario else f"{self.map.lower()}-d{self.difficulty}"
+        return f"{game}-seed{self.seed}{self._label_suffix}"
+
+    @property
+    def contender(self) -> str:
+        """The Scoreboard name; M3's Scenario policies kept the shorter `ppo-seed<N>`."""
+        if self.scenario:
+            return f"ppo-seed{self.seed}{self._label_suffix}"
+        return f"ppo-{self.checkpoint_folder}"
+
+    @property
+    def _label_suffix(self) -> str:
+        return f"-{self.label}" if self.label else ""
 
     @property
     def reward_shaping(self) -> dict | None:
-        if not (self.kill_reward or self.health_penalty):
-            return None
-        return {"kill_reward": self.kill_reward, "health_penalty": self.health_penalty}
+        terms = {n: getattr(self, n) for n in (SCENARIO_SHAPING if self.scenario else MAP_SHAPING)}
+        return terms if any(terms.values()) else None
+
+    def env_factory(self):
+        """How each training copy is built: the env, and the shaping wrapper (None without shaping)."""
+        if self.scenario:
+            return partial(make_scenario_env, self.scenario), RewardShaping if self.reward_shaping else None
+        return partial(make_map_env, self.map, self.difficulty), ProgressShaping if self.reward_shaping else None
 
 
 def train(config: TrainConfig) -> Path:
     """Run one Training Run; return the path of the saved checkpoint."""
-    run_dir = config.out_dir / f"{config.scenario}-seed{config.seed}"
-    vec_env_cls = SubprocVecEnv if config.n_envs > 1 else DummyVecEnv
+    run_dir = config.out_dir / config.checkpoint_folder
+    # Checked before any game process starts, so a refusal leaves nothing running.
+    if (run_dir / "model.zip").exists():
+        raise FileExistsError(f"{run_dir} already holds a checkpoint; give this Training Run a --label")
+    parent = training_record(config.init_from) if config.init_from else None
+    if parent and parent.get("recurrent", False) != config.recurrent:
+        raise ValueError("--recurrent must match the checkpoint training continues from")
+    factory, shaping = config.env_factory()
     env = make_vec_env(
-        make_scenario_env,
+        factory,
         n_envs=config.n_envs,
         seed=config.seed,
-        vec_env_cls=vec_env_cls,
-        env_kwargs={"scenario": config.scenario},
-        # Applied outside SB3's Monitor, so the logged curve stays the Scenario's own reward.
-        wrapper_class=RewardShaping if config.reward_shaping else None,
+        vec_env_cls=SubprocVecEnv if config.n_envs > 1 else DummyVecEnv,
+        # Applied outside SB3's Monitor, so the logged curve stays the game's own reward.
+        wrapper_class=shaping,
         wrapper_kwargs=config.reward_shaping,
     )
     # Scenario rewards run from about -500 to +100 in Basic but -1 to +30 in
@@ -75,45 +128,101 @@ def train(config: TrainConfig) -> Path:
     # wrapper inside make_vec_env still logs the raw reward, and the Eval
     # Suite scores the raw reward.
     env = VecNormalize(env, norm_obs=False, norm_reward=True)
+    algorithm = RecurrentPPO if config.recurrent else PPO
+    hyperparameters = dict(
+        n_steps=config.n_steps,
+        batch_size=config.batch_size,
+        learning_rate=config.learning_rate,
+        n_epochs=config.n_epochs,
+        clip_range=config.clip_range,
+        ent_coef=config.ent_coef,
+    )
     with wandb.init(
         project=WANDB_PROJECT,
         job_type="train",
-        name=f"train-ppo-{config.scenario}-seed{config.seed}",
-        config={"algorithm": "PPO", **asdict(config), "out_dir": str(config.out_dir)},
+        name=f"train-ppo-{config.checkpoint_folder}",
+        config={"algorithm": algorithm.__name__, **asdict(config), "out_dir": str(config.out_dir)},
         sync_tensorboard=True,
     ):
         try:
-            model = PPO(
-                "CnnPolicy",
-                env,
-                n_steps=config.n_steps,
-                batch_size=config.batch_size,
-                learning_rate=config.learning_rate,
-                n_epochs=config.n_epochs,
-                clip_range=config.clip_range,
-                ent_coef=config.ent_coef,
-                seed=config.seed,
-                tensorboard_log=str(run_dir / "tensorboard"),
-                verbose=0,
-            )
+            if config.init_from:
+                # The weights come from the checkpoint; the settings, as for a new Training Run, from this config.
+                model = algorithm.load(
+                    config.init_from, env=env, tensorboard_log=str(run_dir / "tensorboard"), **hyperparameters
+                )
+                model.set_random_seed(config.seed)
+            else:
+                model = algorithm(
+                    "CnnLstmPolicy" if config.recurrent else "CnnPolicy",
+                    env,
+                    **hyperparameters,
+                    seed=config.seed,
+                    tensorboard_log=str(run_dir / "tensorboard"),
+                    verbose=0,
+                )
+            intermediate = IntermediateCheckpoints(run_dir, config, parent) if config.checkpoint_every else None
             start = time.perf_counter()
-            model.learn(total_timesteps=config.total_steps)
-            wall_clock_s = round(time.perf_counter() - start, 1)
+            # A continued Training Run keeps counting steps from where its checkpoint stopped.
+            model.learn(total_timesteps=config.total_steps, callback=intermediate, reset_num_timesteps=not config.init_from)
+            wall_clock_s = time.perf_counter() - start
         finally:
             env.close()
-        checkpoint = run_dir / "model.zip"
-        model.save(checkpoint)
-        record = {
-            "run_id": uuid.uuid4().hex[:12],  # tells this checkpoint apart from a retrain with the same seed
-            "scenario": config.scenario,
-            "seed": config.seed,
-            "steps": model.num_timesteps,
-            "wall_clock_s": wall_clock_s,
-            "reward_shaping": config.reward_shaping,
-            "wandb_run": wandb.run.url if wandb.run else None,
-        }
-        _record_path(checkpoint).write_text(json.dumps(record, indent=2) + "\n")
+        return save_checkpoint(model, run_dir, config, wall_clock_s, parent)
+
+
+def save_checkpoint(
+    model, folder: Path, config: TrainConfig, wall_clock_s: float, parent: dict | None, halfway: bool = False
+) -> Path:
+    """Save the policy as `folder/model.zip`, with what its Training Run cost so far beside it.
+
+    A checkpoint saved `halfway` through a Training Run gets a Contender name of its
+    own (`...-at-<steps>`), so the Eval Suite can measure it next to the final one.
+    """
+    checkpoint = folder / "model.zip"
+    folder.mkdir(parents=True, exist_ok=True)
+    model.save(checkpoint)
+    record = {
+        "run_id": uuid.uuid4().hex[:12],  # tells this checkpoint apart from a retrain with the same seed
+        "contender": config.contender + (f"-at-{model.num_timesteps}" if halfway else ""),
+        "scenario": config.scenario,
+        "map": config.map,
+        "difficulty": config.difficulty if config.map else None,
+        "seed": config.seed,
+        "steps": model.num_timesteps,
+        # A continued Training Run's cost includes the Training Run it started from.
+        "wall_clock_s": round(wall_clock_s + (parent["wall_clock_s"] if parent else 0), 1),
+        "reward_shaping": config.reward_shaping,
+        "recurrent": config.recurrent,
+        "init_from": parent["run_id"] if parent else None,
+        "wandb_run": wandb.run.url if wandb.run else None,
+    }
+    _record_path(checkpoint).write_text(json.dumps(record, indent=2) + "\n")
     return checkpoint
+
+
+class IntermediateCheckpoints(BaseCallback):
+    """Every `config.checkpoint_every` steps, save a checkpoint into `steps-<N>/`, to look at a Training Run halfway."""
+
+    def __init__(self, run_dir: Path, config: TrainConfig, parent: dict | None):
+        super().__init__()
+        self.run_dir, self.config, self.parent = run_dir, config, parent
+
+    def _on_training_start(self) -> None:
+        self.started = time.perf_counter()
+        self._schedule_next()  # a continued Training Run counts on from its checkpoint's steps, not from 0
+
+    def _on_step(self) -> bool:
+        if self.num_timesteps >= self._next:
+            folder = self.run_dir / f"steps-{self.num_timesteps}"
+            elapsed = time.perf_counter() - self.started
+            save_checkpoint(self.model, folder, self.config, elapsed, self.parent, halfway=True)
+            self._schedule_next()
+        return True
+
+    def _schedule_next(self) -> None:
+        # The next multiple of checkpoint_every: one step of all game copies may jump past several.
+        every = self.config.checkpoint_every
+        self._next = (self.num_timesteps // every + 1) * every
 
 
 def training_record(checkpoint: Path) -> dict:
@@ -126,25 +235,24 @@ def _record_path(checkpoint: Path) -> Path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--scenario", required=True, choices=sorted(SCENARIOS))
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--total-steps", type=int, default=TrainConfig.total_steps)
-    parser.add_argument("--n-envs", type=int, default=TrainConfig.n_envs)
-    parser.add_argument("--kill-reward", type=float, default=0.0, help="extra training reward per kill")
-    parser.add_argument("--health-penalty", type=float, default=0.0, help="training cost per health point lost")
-    args = parser.parse_args()
-    checkpoint = train(
-        TrainConfig(
-            args.scenario,
-            args.seed,
-            total_steps=args.total_steps,
-            n_envs=args.n_envs,
-            kill_reward=args.kill_reward,
-            health_penalty=args.health_penalty,
-        )
-    )
-    print(checkpoint)
+    # SUPPRESS leaves unset flags out, so TrainConfig's defaults are the only defaults.
+    parser = argparse.ArgumentParser(description=__doc__, argument_default=argparse.SUPPRESS)
+    game = parser.add_mutually_exclusive_group(required=True)
+    game.add_argument("--scenario", choices=sorted(SCENARIOS))
+    game.add_argument("--map", type=str.upper, help="an original Map, such as E1M1")
+    parser.add_argument("--difficulty", type=int)
+    parser.add_argument("--seed", type=int)
+    parser.add_argument("--total-steps", type=int)
+    parser.add_argument("--n-envs", type=int)
+    parser.add_argument("--kill-reward", type=float, help="Scenarios: extra training reward per kill")
+    parser.add_argument("--health-penalty", type=float, help="Scenarios: training cost per health point lost")
+    parser.add_argument("--progress-reward", type=float, help="Maps: training reward for reaching Progress 1")
+    parser.add_argument("--death-penalty", type=float, help="Maps: training cost of dying")
+    parser.add_argument("--recurrent", action="store_true", help="an LSTM policy (RecurrentPPO)")
+    parser.add_argument("--init-from", type=Path, help="continue training from this checkpoint")
+    parser.add_argument("--checkpoint-every", type=int, help="steps between intermediate checkpoints")
+    parser.add_argument("--label", help="tells settings apart in folder and Contender names")
+    print(train(TrainConfig(**vars(parser.parse_args()))))
 
 
 if __name__ == "__main__":

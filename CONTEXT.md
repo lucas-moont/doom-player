@@ -122,7 +122,7 @@ The score a Scenario defines for itself, summed over one Attempt: in `Basic`, +1
 _Avoid_: score (alone), return
 
 **Reward shaping**:
-Extra reward added during a Training Run only, on top of the Scenario reward, to steer what the policy learns: for example, points per kill and a cost per health point lost. The Eval Suite never sees it; a checkpoint's `training.json` records it. Terms read from the engine are Privileged Information and are declared in Results.
+Extra reward added during a Training Run only, on top of the Scenario reward or a Map's exit reward, to steer what the policy learns: for example, points per kill and a cost per health point lost on a Scenario, or points for Progress gained and a cost for dying on a Map. The Eval Suite never sees it; a checkpoint's `training.json` records it. Terms read from the engine are Privileged Information and are declared in Results.
 _Avoid_: custom reward, bonus (alone)
 
 **Reward hacking**:
@@ -134,8 +134,12 @@ One training process, tracked as one entry in Weights & Biases.
 _Avoid_: run (alone), experiment, job
 
 **Training seed**:
-The seed of a Training Run: it fixes the network's starting weights and the games played while learning. Separate from an Eval Spec's seeds, which fix the games a trained policy is measured on. A PPO Contender is named after its training seed, such as `ppo-seed0`.
+The seed of a Training Run: it fixes the network's starting weights and the games played while learning. Separate from an Eval Spec's seeds, which fix the games a trained policy is measured on. A PPO Contender is named after its training seed, such as `ppo-seed0` on a Scenario or `ppo-e1m1-d3-seed0` on a Map (Map, training Difficulty, seed, and a label when settings differ). On a Map, the games played while learning use game seeds from 1000 up, never an Eval Spec's.
 _Avoid_: seed (alone, when both are in play)
+
+**Action set**:
+The fixed list of button combinations a learned Driver chooses from at each decision on a Map, such as "forward + turn left" or "use" (`maps.ACTIONS`, 11 entries). It limits what the policy does, not what it sees; an LLM Contender presses any of the 19 buttons.
+_Avoid_: action space (alone), moves
 
 **Checkpoint**:
 The saved network a Training Run ends in (`model.zip`), with the run's cost beside it (`training.json`). A learned Contender plays from one.
