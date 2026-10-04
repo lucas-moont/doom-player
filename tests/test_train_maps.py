@@ -8,6 +8,7 @@ import pytest
 from conftest import predicts_an_action
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from doom_player.maps import make_map_env
 from doom_player.paths import WAD_PATH
@@ -44,6 +45,19 @@ def test_recurrent_training_run_saves_a_loadable_checkpoint(tmp_path):
 
     assert training_record(checkpoint)["recurrent"] is True
     assert predicts_an_action(RecurrentPPO.load(checkpoint), make_map_env("E1M1"))
+
+
+def test_map_training_logs_progress_and_clear_rate(tmp_path):
+    # A Map's own reward is 0 until the exit, so its curve alone says nothing early on.
+    # 3,200 steps over 2 copies: every copy finishes at least one 1,575-step Attempt.
+    checkpoint = train(TrainConfig(**TINY | {"total_steps": 3200}, out_dir=tmp_path))
+
+    (events,) = (checkpoint.parent / "tensorboard").rglob("events.*")
+    accumulator = EventAccumulator(str(events))
+    accumulator.Reload()
+    assert {"rollout/progress", "rollout/clear_rate"} <= set(accumulator.Tags()["scalars"])
+    for tag in ("rollout/progress", "rollout/clear_rate"):
+        assert all(0 <= e.value <= 1 for e in accumulator.Scalars(tag))
 
 
 def test_intermediate_checkpoints_are_named_apart_from_the_final_one(tmp_path):

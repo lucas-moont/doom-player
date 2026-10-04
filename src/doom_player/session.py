@@ -142,8 +142,11 @@ class AttemptSession:
         """Hold the given buttons for `tics` tics; return the reward.
 
         With `on_frame`, the game advances one tic at a time and the callback
-        gets every screen, for smooth video. It is the same game either way
-        (tested). Progress is measured once per action in both cases.
+        gets every screen, for smooth video. The game is the same either way
+        (tested), but the status bar face is redrawn differently, so a Contender
+        that reads the screen may decide differently when filmed this way; a
+        learned Map Contender is filmed once per decision instead (ADR 0011).
+        Progress is measured once per action in both cases.
         """
         if self.finished:
             raise RuntimeError("The Attempt is over")

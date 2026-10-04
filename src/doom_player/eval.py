@@ -18,8 +18,9 @@ from pathlib import Path
 from doom_player.contenders import CONTENDERS
 from doom_player.contenders.base import Contender, WholeAttemptContender
 from doom_player.paths import REPO_ROOT
+from doom_player.scenarios import FRAME_SKIP
 from doom_player.session import AttemptSession
-from doom_player.video import VideoWriter
+from doom_player.video import VIDEO_FPS, VideoWriter
 
 RESULTS_DIR = REPO_ROOT / "results"
 WANDB_PROJECT = "doom-player"
@@ -85,6 +86,7 @@ def run_eval(
     path = attempts_path(results_dir, contender.name, spec)
     records = read_records(path)
     check_rules(records, spec, contender.training)
+    check_trained_on(contender, spec.map)  # before any video file is opened
     done = {r["seed"] for r in records}
     played = 0
     for seed in spec.seeds:
@@ -92,10 +94,15 @@ def run_eval(
             continue
         if stop_after is not None and played == stop_after:
             return None
-        video = VideoWriter(video_dir / f"{contender.name}-{spec.name}-seed{seed}.mp4") if video_dir else None
+        whole = isinstance(contender, WholeAttemptContender)
+        video = None
+        if video_dir:
+            # A learned Map Contender is filmed once per decision, which leaves its game unchanged (ADR 0011).
+            fps = VIDEO_FPS / FRAME_SKIP if whole else VIDEO_FPS
+            video = VideoWriter(video_dir / f"{contender.name}-{spec.name}-seed{seed}.mp4", fps)
         on_frame = video.add if video else None
         try:
-            if isinstance(contender, WholeAttemptContender):
+            if whole:
                 record = contender.play_attempt(spec, seed, on_frame)
             else:
                 session = AttemptSession(contender.name, spec.map, spec.difficulty, seed, spec.tic_limit)
@@ -135,6 +142,14 @@ def check_checkpoint(record: dict, spec_name: str, training: dict | None) -> Non
             f"({record.get('checkpoint')}) under the name {record['contender']!r}. Move its Attempts file "
             "aside before measuring the new checkpoint."
         )
+
+
+def check_trained_on(contender, game: str) -> None:
+    """Refuse to measure a learned Contender on a Map or Scenario other than the one it trained on."""
+    if contender.training:
+        trained_on = contender.training.get("map") or contender.training.get("scenario")
+        if trained_on != game:
+            raise SystemExit(f"{contender.name} was trained on {trained_on}, not {game}")
 
 
 def training_columns(training: dict | None) -> dict:

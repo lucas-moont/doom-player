@@ -24,12 +24,13 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 
-from doom_player.maps import ProgressShaping, make_map_env
+from doom_player.maps import ACTIONS, ProgressShaping, make_map_env
 from doom_player.paths import REPO_ROOT
 from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
 
 CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
 WANDB_PROJECT = "doom-player"
+SEED_SPACING = 1000  # at most this many game copies per Training Run; see train() for why
 SCENARIO_SHAPING = ("kill_reward", "health_penalty")
 MAP_SHAPING = ("progress_reward", "death_penalty")
 
@@ -73,6 +74,10 @@ class TrainConfig:
             raise ValueError(f"{', '.join(other_game)} apply to {'Maps' if self.scenario else 'Scenarios'} only")
         if self.map and not re.fullmatch(r"E\dM\d|MAP\d\d", self.map):
             raise ValueError(f"{self.map!r} is not a Map name such as E1M1 or MAP01")
+        if self.recurrent and self.scenario:
+            raise ValueError("--recurrent applies to Maps only: the Scenario Contender keeps no memory between steps")
+        if self.checkpoint_every < 0:
+            raise ValueError("--checkpoint-every must be 0 (none) or a positive number of steps")
 
     @property
     def checkpoint_folder(self) -> str:
@@ -107,8 +112,9 @@ def train(config: TrainConfig) -> Path:
     """Run one Training Run; return the path of the saved checkpoint."""
     run_dir = config.out_dir / config.checkpoint_folder
     # Checked before any game process starts, so a refusal leaves nothing running.
-    if (run_dir / "model.zip").exists():
-        raise FileExistsError(f"{run_dir} already holds a checkpoint; give this Training Run a --label")
+    # Any leftover counts: a Training Run stopped halfway leaves steps-<N>/ checkpoints behind.
+    if run_dir.exists():
+        raise FileExistsError(f"{run_dir} already exists; give this Training Run a --label, or move it aside")
     parent = training_record(config.init_from) if config.init_from else None
     if parent and parent.get("recurrent", False) != config.recurrent:
         raise ValueError("--recurrent must match the checkpoint training continues from")
@@ -116,7 +122,9 @@ def train(config: TrainConfig) -> Path:
     env = make_vec_env(
         factory,
         n_envs=config.n_envs,
-        seed=config.seed,
+        # SB3 seeds copy k with `seed + k`, so training seeds 0 and 1 would share
+        # 7 of 8 copies' streams of games. Spacing them keeps each seed's games its own.
+        seed=config.seed * SEED_SPACING,
         vec_env_cls=SubprocVecEnv if config.n_envs > 1 else DummyVecEnv,
         # Applied outside SB3's Monitor, so the logged curve stays the game's own reward.
         wrapper_class=shaping,
@@ -160,10 +168,16 @@ def train(config: TrainConfig) -> Path:
                     tensorboard_log=str(run_dir / "tensorboard"),
                     verbose=0,
                 )
-            intermediate = IntermediateCheckpoints(run_dir, config, parent) if config.checkpoint_every else None
+            callbacks = [IntermediateCheckpoints(run_dir, config, parent)] if config.checkpoint_every else []
+            if config.map:
+                callbacks.append(ProgressCurve())
             start = time.perf_counter()
             # A continued Training Run keeps counting steps from where its checkpoint stopped.
-            model.learn(total_timesteps=config.total_steps, callback=intermediate, reset_num_timesteps=not config.init_from)
+            model.learn(
+                total_timesteps=config.total_steps,
+                callback=callbacks,  # SB3 wraps a list in a CallbackList
+                reset_num_timesteps=not config.init_from,
+            )
             wall_clock_s = time.perf_counter() - start
         finally:
             env.close()
@@ -193,6 +207,7 @@ def save_checkpoint(
         "wall_clock_s": round(wall_clock_s + (parent["wall_clock_s"] if parent else 0), 1),
         "reward_shaping": config.reward_shaping,
         "recurrent": config.recurrent,
+        "actions": list(ACTIONS) if config.map else None,  # the Action set, in the order the policy learned it
         "init_from": parent["run_id"] if parent else None,
         "wandb_run": wandb.run.url if wandb.run else None,
     }
@@ -223,6 +238,25 @@ class IntermediateCheckpoints(BaseCallback):
         # The next multiple of checkpoint_every: one step of all game copies may jump past several.
         every = self.config.checkpoint_every
         self._next = (self.num_timesteps // every + 1) * every
+
+
+class ProgressCurve(BaseCallback):
+    """Maps only: log each finished Attempt's Progress and Clear next to the reward curve.
+
+    A Map's own reward is 0 until the exit, so its curve stays flat while the
+    policy learns the route; Progress shows the learning before the first Clear.
+    Each point averages only the Attempts that ended since the last one (a few,
+    since a full Attempt is thousands of steps long), so it is noisier than the
+    reward curve, which averages the last 100 Attempts. Progress is Privileged
+    Information: the policy never sees this curve; it is declared in Results.
+    """
+
+    def _on_step(self) -> bool:
+        for info in self.locals["infos"]:
+            if record := info.get("record"):  # the Attempt that copy was playing just ended
+                self.logger.record_mean("rollout/progress", record["progress"])
+                self.logger.record_mean("rollout/clear_rate", float(record["cleared"]))
+        return True
 
 
 def training_record(checkpoint: Path) -> dict:

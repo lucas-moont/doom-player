@@ -42,7 +42,7 @@ class MapEnv(gym.Env):
         self.action_space = gym.spaces.Discrete(len(ACTIONS))
         self.session: AttemptSession | None = None
         self.pressed: list[list[bool]] = []  # each action's button states, in the session's button order
-        self.on_frame = None  # set to a video writer's `add` to film every tic
+        self.on_frame = None  # set to a video writer's `add` to film one frame per decision
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         """Start a new Attempt.
@@ -68,9 +68,13 @@ class MapEnv(gym.Env):
         return self._screen, {}
 
     def step(self, action: int):
-        reward = self.session.act(self.pressed[int(action)], FRAME_SKIP, self.on_frame)
+        # Never tic by tic for video: that redraws the status bar face differently,
+        # and the policy, which reads the screen, would play another game (ADR 0011).
+        reward = self.session.act(self.pressed[int(action)], FRAME_SKIP)
         if not self.session.finished:
             self._screen = self.session.screen()
+            if self.on_frame:
+                self.on_frame(self._screen)
             return self._screen, reward, False, False, {}
         # Over: the game has no screen left, so the last one stands in for it.
         record = self.session.record

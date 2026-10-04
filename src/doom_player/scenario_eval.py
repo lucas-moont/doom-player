@@ -23,6 +23,7 @@ from doom_player.eval import (
     append_record,
     attempts_path,
     check_checkpoint,
+    check_trained_on,
     checkpoint_id,
     read_records,
     training_columns,
@@ -113,10 +114,7 @@ def run_scenario_eval(
     path = attempts_path(results_dir, contender.name, spec)
     records = read_records(path)
     check_scenario_rules(records, spec, contender.training)
-    if contender.training:
-        trained_on = contender.training.get("scenario") or contender.training.get("map")
-        if trained_on != spec.scenario:
-            raise SystemExit(f"{contender.name} was trained on {trained_on}, not {spec.scenario}")
+    check_trained_on(contender, spec.scenario)
     done = {r["seed"] for r in records}
     played = 0
     for seed in spec.seeds:

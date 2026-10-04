@@ -14,7 +14,7 @@ import numpy as np
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
 
-from doom_player.maps import make_map_env
+from doom_player.maps import ACTIONS, make_map_env
 from doom_player.train import training_record
 
 if TYPE_CHECKING:
@@ -60,14 +60,17 @@ class PPOMapContender(_FromCheckpoint):
     policy view, so the policy is measured on exactly what it trained on (ADR 0011).
     """
 
+    def __init__(self, checkpoint: Path):
+        super().__init__(checkpoint)
+        # Action i must still mean the buttons it meant in training. Checkpoints from
+        # before the Action set was recorded can only be checked for its size.
+        learned = self.training.get("actions")
+        if (learned is not None and learned != list(ACTIONS)) or self._model.action_space.n != len(ACTIONS):
+            raise SystemExit(f"{self.name} was trained with another Action set than maps.ACTIONS")
+
     def play_attempt(self, spec: "EvalSpec", seed: int, on_frame: Callable | None = None) -> dict:
-        trained_on = self.training.get("map") or self.training.get("scenario")
-        if trained_on != spec.map:
-            raise SystemExit(f"{self.name} was trained on {trained_on}, not {spec.map}")
         env = make_map_env(spec.map, spec.difficulty, spec.tic_limit, contender=self.name)
         try:
-            if self._model.action_space != env.action_space:
-                raise SystemExit(f"{self.name} was trained with another Action set than maps.ACTIONS")
             obs, _ = env.reset(options={"game_seed": seed})
             env.unwrapped.on_frame = on_frame
             state, start, done = None, True, False

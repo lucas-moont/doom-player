@@ -88,6 +88,30 @@ def test_map_env_plays_the_same_game_as_the_attempt_session():
     assert env_path == direct_path  # same position after every action
 
 
+def test_filming_leaves_what_the_policy_sees_unchanged():
+    # Stepping tic by tic for video redrew the status bar face differently (seen at the
+    # 23rd decision of this plan), and a policy reading the screen then played another game.
+    plan = [ACTION["forward"]] * 10 + [ACTION["forward + turn left"]] * 5 + [ACTION["forward"]] * 20
+    frames = []
+
+    def views(on_frame):
+        env = make_map_env("E1M1", tic_limit=400)
+        try:
+            obs, _ = env.reset(options={"game_seed": 3})
+            env.unwrapped.on_frame = on_frame
+            seen = [obs]
+            for action in plan:
+                obs, *_ = env.step(action)
+                seen.append(obs)
+            return seen
+        finally:
+            env.close()
+
+    plain, filmed = views(None), views(frames.append)
+    assert len(frames) == len(plan)  # one frame per decision
+    assert all(np.array_equal(a, b) for a, b in zip(plain, filmed))
+
+
 def test_map_attempt_ends_at_the_tic_limit():
     env = make_map_env("E1M1", tic_limit=40)
     try:
