@@ -76,4 +76,6 @@ def test_training_continues_from_a_checkpoint(tmp_path):
     before, after = training_record(easy), training_record(hard)
     assert after["init_from"] == before["run_id"]
     assert after["steps"] >= before["steps"] + 128  # the counts carry on
+    # The reward scale the value network learned on is saved, so the next stage can start from it.
+    assert (easy.parent / "vecnormalize.pkl").exists() and (hard.parent / "vecnormalize.pkl").exists()
     assert predicts_an_action(PPO.load(hard), make_map_env("E1M1"))

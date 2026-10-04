@@ -71,8 +71,8 @@ class PPOMapContender(_FromCheckpoint):
     def play_attempt(self, spec: "EvalSpec", seed: int, on_frame: Callable | None = None) -> dict:
         env = make_map_env(spec.map, spec.difficulty, spec.tic_limit, contender=self.name)
         try:
+            env.unwrapped.on_frame = on_frame  # before reset, so the video starts at the spawn
             obs, _ = env.reset(options={"game_seed": seed})
-            env.unwrapped.on_frame = on_frame
             state, start, done = None, True, False
             while not done:
                 # A recurrent policy carries its memory in `state`; a plain one ignores it.

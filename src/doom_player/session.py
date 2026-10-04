@@ -130,7 +130,7 @@ class AttemptSession:
         )
 
     def screen(self):
-        """The screen alone, for a learned Driver: `observe` without the automap copy, every step."""
+        """The screen alone, for a learned Driver: `observe` without the HUD numbers and automap it does not use."""
         return self.game.get_state().screen_buffer
 
     @property

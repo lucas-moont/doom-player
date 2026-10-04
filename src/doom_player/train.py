@@ -31,6 +31,7 @@ from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
 CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
 WANDB_PROJECT = "doom-player"
 SEED_SPACING = 1000  # at most this many game copies per Training Run; see train() for why
+REWARD_SCALE_FILE = "vecnormalize.pkl"  # VecNormalize's running reward statistics, saved beside model.zip
 SCENARIO_SHAPING = ("kill_reward", "health_penalty")
 MAP_SHAPING = ("progress_reward", "death_penalty")
 
@@ -78,6 +79,12 @@ class TrainConfig:
             raise ValueError("--recurrent applies to Maps only: the Scenario Contender keeps no memory between steps")
         if self.checkpoint_every < 0:
             raise ValueError("--checkpoint-every must be 0 (none) or a positive number of steps")
+        if self.map and not 1 <= self.difficulty <= 5:
+            raise ValueError("--difficulty is Doom's skill level, 1 to 5")
+        if not re.fullmatch(r"[a-z0-9-]*", self.label):
+            raise ValueError("--label may use lowercase letters, digits and dashes only: it names folders")
+        if self.n_envs > SEED_SPACING:
+            raise ValueError(f"at most {SEED_SPACING} copies, or neighbouring training seeds would share games")
 
     @property
     def checkpoint_folder(self) -> str:
@@ -118,6 +125,8 @@ def train(config: TrainConfig) -> Path:
     parent = training_record(config.init_from) if config.init_from else None
     if parent and parent.get("recurrent", False) != config.recurrent:
         raise ValueError("--recurrent must match the checkpoint training continues from")
+    if parent and config.map and parent.get("actions") not in (None, list(ACTIONS)):
+        raise ValueError("the checkpoint training continues from learned another Action set than maps.ACTIONS")
     factory, shaping = config.env_factory()
     env = make_vec_env(
         factory,
@@ -134,8 +143,13 @@ def train(config: TrainConfig) -> Path:
     # DefendCenter. Rescaling them to a running unit size keeps the value
     # network's errors small on every Scenario. Training only: the Monitor
     # wrapper inside make_vec_env still logs the raw reward, and the Eval
-    # Suite scores the raw reward.
-    env = VecNormalize(env, norm_obs=False, norm_reward=True)
+    # Suite scores the raw reward. A continued Training Run keeps its parent's
+    # scale, which its value network learned on.
+    parent_scale = config.init_from.with_name(REWARD_SCALE_FILE) if config.init_from else None
+    if parent_scale and parent_scale.exists():
+        env = VecNormalize.load(str(parent_scale), env)
+    else:
+        env = VecNormalize(env, norm_obs=False, norm_reward=True)
     algorithm = RecurrentPPO if config.recurrent else PPO
     hyperparameters = dict(
         n_steps=config.n_steps,
@@ -195,6 +209,7 @@ def save_checkpoint(
     checkpoint = folder / "model.zip"
     folder.mkdir(parents=True, exist_ok=True)
     model.save(checkpoint)
+    model.get_vec_normalize_env().save(str(folder / REWARD_SCALE_FILE))  # for a Training Run continued from here
     record = {
         "run_id": uuid.uuid4().hex[:12],  # tells this checkpoint apart from a retrain with the same seed
         "contender": config.contender + (f"-at-{model.num_timesteps}" if halfway else ""),

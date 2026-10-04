@@ -65,6 +65,8 @@ class MapEnv(gym.Env):
                 raise ValueError(f"ACTIONS names unknown buttons: {sorted(unknown)}")
             self.pressed = [[b in names for b in self.session.buttons] for names in ACTIONS.values()]
         self._screen = self.session.screen()
+        if self.on_frame:  # the spawn, first frame of a video
+            self.on_frame(self._screen)
         return self._screen, {}
 
     def step(self, action: int):
