@@ -14,7 +14,9 @@ No public record of one doing so was found when this project started (see `docs/
 
 M2 - LLM plays E1M1 done: Claude Opus 5.5, playing through the Doom MCP server with Human-equivalent Observations only, Cleared `E1M1` in 1 of 5 Attempts with screen and actions, 4 of 5 with the automap, and 5 of 5 with the automap and a notebook (Scoreboard below; write-up in `docs/posts/01-llm-plays-doom.md`).
 
-M3 - RL on Scenarios done: PPO policies that see only the screen beat the random agent on three ViZDoom Scenarios, `DefendCenter` with three training seeds that end within 0.2 of each other. On `DeadlyCorridor` the first policy gamed its reward by charging forward and dying; a shaped training reward taught it to shoot (Scenario table below; write-up in `docs/posts/02-rl-learns-to-shoot.md`). Current milestone: **M4 - RL Clears E1M1**.
+M3 - RL on Scenarios done: PPO policies that see only the screen beat the random agent on three ViZDoom Scenarios, `DefendCenter` with three training seeds that end within 0.2 of each other. On `DeadlyCorridor` the first policy gamed its reward by charging forward and dying; a shaped training reward taught it to shoot (Scenario table below; write-up in `docs/posts/02-rl-learns-to-shoot.md`).
+
+M4 - RL Clears E1M1 done: a PPO policy that sees only the screen Clears `E1M1` in 15 of 15 Attempts over three training seeds, at about a second per Attempt (0.8 to 0.9 s on average), once training pays for Progress toward the exit; on the exit reward alone it learns nothing (Scoreboard below; write-up in `docs/posts/03-rl-clears-e1m1.md`). Current milestone: **M5 - Maps with keys**.
 
 ## Scoreboard
 

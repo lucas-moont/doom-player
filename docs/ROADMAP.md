@@ -14,8 +14,8 @@ The order is deliberate: the LLM-only Contender comes before reinforcement learn
 | M1 | Ruler and socket | done 2026-10-02 | Evals, MCP, tool design | Eval Suite + Doom MCP server; random agent on the Scoreboard | `milestones/M1-ruler-and-socket.md` |
 | M2 | LLM plays E1M1 | done 2026-10-02 | Harness, memory, tool use, cost accounting | **Post 1**: how far an LLM gets, measured | `milestones/M2-llm-only.md` |
 | M3 | RL on Scenarios | done 2026-10-03 | PPO, reward, training curves, Stable-Baselines3 | **Post 2**: agent learns to shoot and survive | `milestones/M3-rl-on-scenarios.md` |
-| M4 | RL Clears E1M1 | next | Reward shaping, recurrent memory (LSTM), curriculum by Difficulty | **Post 3**: first original Map Cleared by a learned Driver | `milestones/M4-rl-clears-e1m1.md` |
-| M5 | Maps with keys | planned | Intrinsic reward (RND), ablation | `E1M2` Cleared; with-and-without comparison | written when M4 is done |
+| M4 | RL Clears E1M1 | done 2026-10-04 | Reward shaping, recurrent memory (LSTM), curriculum by Difficulty | **Post 3**: first original Map Cleared by a learned Driver | `milestones/M4-rl-clears-e1m1.md` |
+| M5 | Maps with keys | next | Intrinsic reward (RND), ablation | `E1M2` Cleared; with-and-without comparison | `milestones/M5-maps-with-keys.md` |
 | M6 | Learning by watching | planned | Behavioural cloning, demo recording, fine-tuning | Does a human demo speed up learning? | written when M5 is done |
 | M7 | Driver + Navigator | planned | Hierarchical control, Subgoals | **Big post**: all Contenders, one Scoreboard | written when M6 is done |
 | M8 | Doom Episode 1 | planned | Campaign wrapper, generalisation | Video of a full Campaign | written when M7 is done |
@@ -26,7 +26,7 @@ Set `Status` to `done` with the completion date when a milestone's completion cr
 
 ## Briefs are written one milestone ahead
 
-Only M0 to M4 have briefs. Each later brief is written when the milestone before it is done, because its design depends on what was measured. Writing a brief means: goal, concepts, steps, completion criteria, open facts to test.
+Only M0 to M5 have briefs. Each later brief is written when the milestone before it is done, because its design depends on what was measured. Writing a brief means: goal, concepts, steps, completion criteria, open facts to test.
 
 ## Pace
 
@@ -57,3 +57,4 @@ From `research/2026-09-28-state-of-the-art-doom-agents.md`:
 - The closest public precedent Clears single Maps (`E1M2`, `MAP01`) with one trained agent per Map, in about 8 hours on an RTX 3080.
 - Published LLM-only attempts did not Clear `E1M1`. Those used 2024-2025 models, so M2 measured this again: Claude Opus 5.5 Cleared it in 1 of 5 Attempts with screen and actions only, 4 of 5 with the automap, and 5 of 5 with the automap and a notebook, with the game paused between decisions (`milestones/M2-llm-only.md`).
 - PPO from screen pixels learns ViZDoom Scenarios in 8 to 32 minutes on the RTX 4050, but a reward that pays the wrong thing gets gamed: on `DeadlyCorridor` the first policy charged forward and died, and no setting tried taught it to survive (`milestones/M3-rl-on-scenarios.md`).
+- On `E1M1`, the exit reward alone teaches PPO nothing (8.5% Progress after 1M steps, below random), while a training reward for Progress toward the exit gives 15 Clears in 15 over three training seeds, about 3 hours each. Every Clear follows the same route: the policy learned one Map, not how to find its way (`milestones/M4-rl-clears-e1m1.md`).
