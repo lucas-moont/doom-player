@@ -1,25 +1,49 @@
-"""The PPO Contender: a CNN policy trained by `doom-train`, playing from its checkpoint.
+"""PPO Contenders: CNN policies trained by `doom-train`, playing from their checkpoint.
 
-It sees what the Scenario environment gives it, the stacked grayscale screen,
-so its Observation class is human-equivalent. It always picks its most likely
+They see the screen only, in the policy view (gray, 84x84, last 4 frames), so
+their Observation class is human-equivalent. They always pick their most likely
 action, so the same seeds replay the same Attempts.
 """
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import numpy as np
+from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
 
+from doom_player.maps import ACTIONS, make_map_env
 from doom_player.train import training_record
 
+if TYPE_CHECKING:
+    from doom_player.eval import EvalSpec
 
-class PPOContender:
+
+def load_policy(checkpoint: Path):
+    """The checkpoint's policy and its Training Run record; an LSTM policy loads as RecurrentPPO."""
+    training = training_record(checkpoint)
+    if training.get("recurrent"):
+        return RecurrentPPO.load(checkpoint, device="cpu"), training
+    return PPO.load(checkpoint, device="cpu"), training
+
+
+def contender_name(training: dict) -> str:
+    # Checkpoints from before M4 have no name in their record; theirs was `ppo-seed<N>`.
+    return training.get("contender") or f"ppo-seed{training['seed']}"
+
+
+class _FromCheckpoint:
+    """A Contender that plays from a checkpoint, named after its Training Run."""
+
     def __init__(self, checkpoint: Path):
-        self._model = PPO.load(checkpoint, device="cpu")
-        self.training = training_record(checkpoint)  # the cost column of the Scoreboard
-        # One name per training seed: each policy keeps its own Attempts file and Scoreboard row.
-        self.name = f"ppo-seed{self.training['seed']}"
+        self._model, self.training = load_policy(checkpoint)  # training: the cost columns
+        self.name = contender_name(self.training)  # one name per setting and training seed
+
+
+class PPOContender(_FromCheckpoint):
+    """A policy trained on a Scenario, deciding one step at a time."""
 
     def reset(self, seed: int, action_space: gym.spaces.Discrete) -> None:
         pass  # the policy keeps no memory between decisions; recent frames are in the observation
@@ -27,3 +51,36 @@ class PPOContender:
     def act(self, observation: np.ndarray) -> int:
         action, _ = self._model.predict(observation, deterministic=True)
         return int(action)
+
+
+class PPOMapContender(_FromCheckpoint):
+    """A policy trained on an original Map, playing each Attempt whole through the env it trained in.
+
+    The Map env wraps the same AttemptSession the Eval Suite uses and adds the
+    policy view, so the policy is measured on exactly what it trained on (ADR 0011).
+    """
+
+    def __init__(self, checkpoint: Path):
+        super().__init__(checkpoint)
+        # Action i must still mean the buttons it meant in training. Checkpoints from
+        # before the Action set was recorded can only be checked for its size.
+        learned = self.training.get("actions")
+        if (learned is not None and learned != list(ACTIONS)) or self._model.action_space.n != len(ACTIONS):
+            raise SystemExit(f"{self.name} was trained with another Action set than maps.ACTIONS")
+
+    def play_attempt(self, spec: "EvalSpec", seed: int, on_frame: Callable | None = None) -> dict:
+        env = make_map_env(spec.map, spec.difficulty, spec.tic_limit, contender=self.name)
+        try:
+            env.unwrapped.on_frame = on_frame  # before reset, so the video starts at the spawn
+            obs, _ = env.reset(options={"game_seed": seed})
+            state, start, done = None, True, False
+            while not done:
+                # A recurrent policy carries its memory in `state`; a plain one ignores it.
+                action, state = self._model.predict(
+                    obs, state=state, episode_start=np.array([start]), deterministic=True
+                )
+                obs, _, terminated, truncated, info = env.step(int(action))
+                start, done = False, terminated or truncated
+            return info["record"]
+        finally:
+            env.close()

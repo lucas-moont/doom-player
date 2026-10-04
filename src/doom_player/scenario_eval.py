@@ -17,7 +17,17 @@ import numpy as np
 import vizdoom
 from gymnasium.wrappers import RecordVideo
 
-from doom_player.eval import RESULTS_DIR, _git_commit, append_record, attempts_path, read_records
+from doom_player.eval import (
+    RESULTS_DIR,
+    _git_commit,
+    append_record,
+    attempts_path,
+    check_checkpoint,
+    check_trained_on,
+    checkpoint_id,
+    read_records,
+    training_columns,
+)
 from doom_player.scenarios import FRAME_SKIP, make_scenario_env
 from doom_player.session import OBSERVATION_CLASS
 
@@ -84,7 +94,7 @@ def play_scenario(
         "steps": steps,
         "observation_class": OBSERVATION_CLASS,
         "wall_clock_s": round(time.perf_counter() - start, 2),
-        "checkpoint": _checkpoint_id(contender.training),
+        "checkpoint": checkpoint_id(contender.training),
     }
 
 
@@ -104,6 +114,7 @@ def run_scenario_eval(
     path = attempts_path(results_dir, contender.name, spec)
     records = read_records(path)
     check_scenario_rules(records, spec, contender.training)
+    check_trained_on(contender, spec.scenario)
     done = {r["seed"] for r in records}
     played = 0
     for seed in spec.seeds:
@@ -126,16 +137,7 @@ def check_scenario_rules(records: list[dict], spec: ScenarioSpec, training: dict
                 f"seed {r['seed']} in {spec.name} was played on {r['scenario']!r}, but the spec "
                 f"now says {spec.scenario!r}. Give the changed spec a new name."
             )
-        if r.get("checkpoint") != _checkpoint_id(training):
-            raise SystemExit(
-                f"seed {r['seed']} in {spec.name} was played by another checkpoint "
-                f"({r.get('checkpoint')}) under the name {r['contender']!r}. Move its Attempts file "
-                "aside before measuring the new checkpoint."
-            )
-
-
-def _checkpoint_id(training: dict | None) -> str | None:
-    return training["run_id"] if training else None
+        check_checkpoint(r, spec.name, training)
 
 
 def scenario_row(
@@ -153,8 +155,7 @@ def scenario_row(
         "reward_by_seed": [r["reward"] for r in records],
         "observation_class": records[0]["observation_class"],
         "wall_clock_s_per_attempt": round(sum(r["wall_clock_s"] for r in records) / n, 2),
-        "training_steps": training["steps"] if training else None,
-        "training_wall_clock_s": training["wall_clock_s"] if training else None,
+        **training_columns(training),
         "measured_on": date.today().isoformat(),
         "commit": _git_commit(),
     }

@@ -5,7 +5,7 @@ Doom advances 35 tics per second and published LLM-only attempts took up to a mi
 ## Considered Options
 
 - **LLM only**: kept as a Contender for comparison (M2), not as the target architecture.
-- **RL only**: kept as a Contender (M3-M6). Evidence exists for single Maps; none for a full Doom Episode.
+- **RL only**: kept as a Contender (M3-M7). Evidence exists for single Maps; none for a full Doom Episode.
 
 ## Consequences
 

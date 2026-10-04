@@ -5,4 +5,4 @@ ViZDoom exposes exact coordinates, depth, object labels, sector data and save st
 ## Consequences
 
 - Early learning milestones may run a privileged Contender for teaching purposes, labelled as such on the Scoreboard.
-- Go-Explore (M9) relies on save states; it is a training-time technique and the resulting policy is still evaluated without them.
+- Go-Explore (M10) relies on save states; it is a training-time technique and the resulting policy is still evaluated without them.
