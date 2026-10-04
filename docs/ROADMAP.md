@@ -17,12 +17,19 @@ The order is deliberate: the LLM-only Contender comes before reinforcement learn
 | M4 | RL Clears E1M1 | done 2026-10-04 | Reward shaping, recurrent memory (LSTM), curriculum by Difficulty | **Post 3**: first original Map Cleared by a learned Driver | `milestones/M4-rl-clears-e1m1.md` |
 | M5 | Maps with keys | next | Intrinsic reward (RND), ablation | `E1M2` Cleared; with-and-without comparison | `milestones/M5-maps-with-keys.md` |
 | M6 | Learning by watching | planned | Behavioural cloning, demo recording, fine-tuning | Does a human demo speed up learning? | written when M5 is done |
-| M7 | Driver + Navigator | planned | Hierarchical control, Subgoals | **Big post**: all Contenders, one Scoreboard | written when M6 is done |
-| M8 | Doom Episode 1 | planned | Campaign wrapper, generalisation | Video of a full Campaign | written when M7 is done |
-| M9 | Toward the full game | planned | Go-Explore, scale (Sample Factory) | Doom Episodes 2 and 3; then the Bonus Doom Episode | written when M8 is done |
-| M10 | World model (optional) | planned | DreamerV3 or small diffusion model | A small "dreamed Doom" | written if reached |
+| M7 | Unseen Map | planned | Generalisation, held-out evaluation, overfitting | How a learned Driver does on a Map it never trained on, next to the LLM | written when M6 is done |
+| M8 | Driver + Navigator | planned | Hierarchical control, Subgoals | **Big post**: all Contenders, one Scoreboard | written when M7 is done |
+| M9 | Doom Episode 1 | planned | Campaign wrapper, generalisation | Video of a full Campaign | written when M8 is done |
+| M10 | Toward the full game | planned | Go-Explore, scale (Sample Factory) | Doom Episodes 2 and 3; then the Bonus Doom Episode | written when M9 is done |
+| M11 | World model (optional) | planned | DreamerV3 or small diffusion model | A small "dreamed Doom" | written if reached |
 
 Set `Status` to `done` with the completion date when a milestone's completion criteria are all met.
+
+**Why M7 exists** (added 2026-10-04, after M4): M4's policies Cleared `E1M1` 15 of 15 by taking one route every time, trained on that Map alone. Nothing so far measures a learned Driver on a Map it has not trained on, yet that is the question the Driver + Navigator (M8) answers: a Navigator that reads the automap should help most where the Driver has not memorised the way. M7 trains on some Doom Episode 1 Maps and evaluates on one held out, like an exam with questions the homework never had, so M8 has a number to beat. If M5 or M6 already answers it, M7 shrinks to the measurement.
+
+**Every result passes `measurement-checklist.md`** before it reaches the Scoreboard: the checks for the measurement mistakes found so far.
+
+**Beat the game means Difficulty 3** ("Hurt Me Plenty", the game's default), the Difficulty of every Map Eval Spec so far, unless a result states otherwise (`adr/0012-beat-the-game-at-difficulty-3.md`).
 
 ## Briefs are written one milestone ahead
 

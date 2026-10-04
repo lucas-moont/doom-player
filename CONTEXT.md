@@ -48,7 +48,7 @@ A chain of Attempts through the Maps of a Doom Episode in order, carrying health
 _Avoid_: playthrough, full run
 
 **Beat the game**:
-A Campaign that Clears every required Map of the target scope without restarting. The scope is stated each time: one Map, Doom Episode 1, or the Original Doom Episodes.
+A Campaign that Clears every required Map of the target scope without restarting, at Difficulty 3 (ADR 0012). The scope is stated each time: one Map, Doom Episode 1, or the Original Doom Episodes.
 _Avoid_: finish, zerar
 
 ### What the agent knows

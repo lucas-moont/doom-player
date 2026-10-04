@@ -37,6 +37,7 @@ Written 2026-10-04, after M4. M4 showed that Progress shaping makes `E1M1` easy:
 - Every result goes through the Eval Suite with seeds and cost; scored Attempts are not filmed tic by tic (ADR 0011).
 - Training Runs are logged to W&B, with the Map's own reward and the Progress curve.
 - Training seeds use spaced game seeds (`train.SEED_SPACING`), so each training seed's games are its own.
+- Every result passes `docs/measurement-checklist.md` before it reaches the Scoreboard.
 
 ## Completion criteria
 

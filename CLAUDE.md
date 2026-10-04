@@ -13,7 +13,7 @@ An agent that beats the original Doom (1993), built milestone by milestone, in p
 - **WAD files stay out of git.** `doom.wad` is copyrighted. It lives in `wads/`, which is gitignored. Freedoom is the only WAD that may be referenced as downloadable.
 - **Contenders see human-equivalent observations only**: screen pixels, HUD values, automap. Privileged information (positions, depth, labels, sectors) is allowed for computing training reward and for debugging visualisations, and each use is declared in the milestone's results. See `docs/adr/0002-human-equivalent-observations.md`.
 - **The LLM stays out of the per-tic loop.** It acts as Navigator, through the MCP server, with the game in synchronous mode. See `docs/adr/0001-driver-navigator-hybrid.md`.
-- **Every result goes through the eval suite** and lands on the Scoreboard with seeds, observation class, and cost. A number measured any other way is a note, not a result.
+- **Every result goes through the eval suite** and lands on the Scoreboard with seeds, observation class, and cost. A number measured any other way is a note, not a result. Before it lands, it passes `docs/measurement-checklist.md`.
 - **Inside WSL2, install only user-space packages.** The NVIDIA driver lives on the Windows side; the `cuda`, `cuda-12-x` and `cuda-drivers` apt packages break GPU passthrough.
 
 ## Working with the owner
