@@ -40,6 +40,14 @@ def make_scenario_env(
     env = TransformObservation(
         env, lambda obs: obs["screen"], env.observation_space["screen"]
     )
+    return policy_view(env)
+
+
+def policy_view(env: gym.Env) -> gym.Env:
+    """What a CNN policy sees of an RGB screen: gray, 84x84, the last 4 frames.
+
+    Shared by Scenarios and Maps, so a policy always gets the same picture.
+    """
     env = GrayscaleObservation(env)
     env = ResizeObservation(env, (FRAME_SIZE, FRAME_SIZE))
     return FrameStackObservation(env, FRAMES_STACKED)
