@@ -90,7 +90,7 @@ def _jsonl(path) -> list[dict]:
 
 def clips() -> None:
     rows = _jsonl(REPO_ROOT / "results/attempts/ppo-e1m1-d3-seed0-shaped/e1m1-v1.jsonl")
-    fastest = min(rows, key=lambda r: r["tics"])
+    fastest = min((r for r in rows if r["cleared"]), key=lambda r: r["tics"])  # an early death is not a Clear
     cuts = [
         (f"ppo-e1m1-d3-seed0-shaped-e1m1-v1-seed{fastest['seed']}.mp4", "e1m1-clear.mp4", []),
         ("ppo-e1m1-d3-seed0-sparse-e1m1-v1-seed1.mp4", "e1m1-sparse.mp4", ["-t", "30"]),
