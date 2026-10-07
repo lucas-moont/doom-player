@@ -35,6 +35,7 @@ class EvalSpec:
     difficulty: int
     seeds: tuple[int, ...]
     tic_limit: int
+    progress_rule: str = "doors-open"  # how Progress is measured: every door open, or "keyed" (ADR 0013)
 
 
 # Settled with the owner on 2026-10-01 (M1 brief, design question 2).
@@ -105,7 +106,7 @@ def run_eval(
             if whole:
                 record = contender.play_attempt(spec, seed, on_frame)
             else:
-                session = AttemptSession(contender.name, spec.map, spec.difficulty, seed, spec.tic_limit)
+                session = AttemptSession.for_spec(contender.name, spec, seed)
                 record = play(contender, session, on_frame)
         finally:
             if video:
@@ -118,12 +119,14 @@ def run_eval(
 
 def check_rules(records: list[dict], spec: EvalSpec, training: dict | None = None) -> None:
     """Refuse to mix Attempts played under different rules, or by different policies, in one file."""
+    rules = (spec.map, spec.difficulty, spec.tic_limit, spec.progress_rule)
     for r in records:
-        played = (r["map"], r["difficulty"], r["tic_limit"])
-        if played != (spec.map, spec.difficulty, spec.tic_limit):
+        # Records from before M5 have no Progress rule: they were measured with every door open.
+        played = (r["map"], r["difficulty"], r["tic_limit"], r.get("progress_rule", "doors-open"))
+        if played != rules:
             raise SystemExit(
                 f"seed {r['seed']} in {spec.name} was played as {played}, but the spec now says "
-                f"{(spec.map, spec.difficulty, spec.tic_limit)}. Give the changed spec a new name."
+                f"{rules}. Give the changed spec a new name."
             )
         check_checkpoint(r, spec.name, training)
 

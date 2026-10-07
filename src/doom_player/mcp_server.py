@@ -235,7 +235,7 @@ def main() -> None:
         spec = SPECS[args.spec]
         if args.seed not in spec.seeds:
             raise SystemExit(f"seed {args.seed} is not in spec {spec.name}: {spec.seeds}")
-        session = AttemptSession(args.contender, spec.map, spec.difficulty, args.seed, spec.tic_limit)
+        session = AttemptSession.for_spec(args.contender, spec, args.seed)
         record_path = attempts_path(RESULTS_DIR, args.contender, spec)
     else:
         session = AttemptSession(args.contender, "E1M1", args.difficulty, args.seed, args.tic_limit)

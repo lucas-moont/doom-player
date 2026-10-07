@@ -121,6 +121,11 @@ class AttemptSession:
         self._started = time.perf_counter()
         self._measure()
 
+    @classmethod
+    def for_spec(cls, contender: str, spec, seed: int) -> "AttemptSession":
+        """An Attempt under an Eval Spec's rules: every scored Attempt starts here."""
+        return cls(contender, spec.map, spec.difficulty, seed, spec.tic_limit, spec.progress_rule)
+
     def _build_game(self) -> vzd.DoomGame:
         game = vzd.DoomGame()
         game.load_config(os.path.join(vzd.scenarios_path, "doom.cfg"))

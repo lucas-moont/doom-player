@@ -1,5 +1,6 @@
 """The Eval Suite repeats itself exactly and resumes without repeating Attempts."""
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -46,3 +47,18 @@ def test_changed_rules_under_the_same_name_are_refused(tmp_path):
     longer = replace(SHORT, tic_limit=560)  # same name, different rules
     with pytest.raises(SystemExit, match="new name"):
         run_eval(RandomContender(), longer, tmp_path)
+
+
+def test_a_changed_progress_rule_under_the_same_name_is_refused(tmp_path):
+    run_eval(RandomContender(), SHORT, tmp_path, stop_after=1)
+    keyed = replace(SHORT, progress_rule="keyed")  # same name, Progress measured another way
+    with pytest.raises(SystemExit, match="new name"):
+        run_eval(RandomContender(), keyed, tmp_path)
+
+
+def test_records_from_before_progress_rules_count_as_doors_open(tmp_path):
+    run_eval(RandomContender(), SHORT, tmp_path, stop_after=1)
+    path = attempts_path(tmp_path, "random", SHORT)
+    old = [{k: v for k, v in r.items() if k not in ("progress_rule", "keys_held")} for r in read_records(path)]
+    path.write_text("".join(json.dumps(r) + "\n" for r in old))
+    assert run_eval(RandomContender(), SHORT, tmp_path) is not None

@@ -43,7 +43,14 @@ def acts_from_transcript(path: Path) -> list[tuple[list[str], int]]:
 
 
 def replay(record: dict, transcript: Path) -> AttemptSession:
-    session = AttemptSession(record["contender"], record["map"], record["difficulty"], record["seed"], record["tic_limit"])
+    session = AttemptSession(
+        record["contender"],
+        record["map"],
+        record["difficulty"],
+        record["seed"],
+        record["tic_limit"],
+        record.get("progress_rule", "doors-open"),  # records from before M5 have none
+    )
     reward = 0.0
     for buttons, tics in acts_from_transcript(transcript):
         if session.finished:
