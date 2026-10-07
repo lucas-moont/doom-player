@@ -10,9 +10,10 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from doom_player.rnd import RND, RNDBonus
+from doom_player.rnd import RND, RNDBonus, RNDUpdate
 
 
 def frames(seed: int, n: int = 64) -> np.ndarray:
@@ -124,3 +125,21 @@ def test_each_finished_attempt_reports_its_bonus_and_reward():
     for info in infos:
         assert info["rnd"]["reward"] == pytest.approx(3.0)
         assert info["rnd"]["bonus"] > 0
+
+
+def test_the_predictor_trains_on_each_rollout_and_learns_the_rooms():
+    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"))
+    play(env, 6)
+    first = env.train_on_rollout()
+    for _ in range(10):
+        play(env, 6)
+        last = env.train_on_rollout()
+    assert last["rnd/predictor_loss"] < first["rnd/predictor_loss"]
+    assert env.rollouts_trained == 11
+
+
+def test_ppo_trains_the_predictor_after_every_rollout():
+    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"))
+    model = PPO("CnnPolicy", env, n_steps=6, batch_size=12, n_epochs=1, device="cpu", seed=0)
+    model.learn(total_timesteps=24, callback=RNDUpdate())  # 2 copies x 6 steps per rollout: 2 rollouts
+    assert env.rollouts_trained == 2

@@ -13,8 +13,9 @@ what is simplified, is recorded in the M5 brief.
 
 import numpy as np
 import torch
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.running_mean_std import RunningMeanStd
-from stable_baselines3.common.vec_env import VecEnv, VecEnvWrapper
+from stable_baselines3.common.vec_env import VecEnv, VecEnvWrapper, unwrap_vec_wrapper
 from torch import nn
 
 FRAME_SIZE = 84  # one gray frame of the policy view
@@ -130,7 +131,9 @@ class RNDBonus(VecEnvWrapper):
 
     Wraps the batch of game copies in the main process, so one predictor
     learns from every copy. The bonus is added as each step happens, because
-    SB3 computes a rollout's advantages before any callback sees it. Each step pays for the screen it reached: when an Attempt
+    SB3 computes a rollout's advantages before any callback sees it; the
+    predictor trains once per rollout (`train_on_rollout`, called by
+    `RNDUpdate`). Each step pays for the screen it reached: when an Attempt
     ends, that is the info's terminal observation, not the next spawn.
 
     The raw bonus is divided by the running spread of its own discounted sum
@@ -155,6 +158,9 @@ class RNDBonus(VecEnvWrapper):
         self._discounted = np.zeros(self.num_envs)
         self._attempt_bonus = np.zeros(self.num_envs)  # paid so far in each copy's Attempt
         self._attempt_reward = np.zeros(self.num_envs)  # the reward underneath, as it reached this wrapper
+        self._rollout_frames: list[np.ndarray] = []  # what the predictor learns from next
+        self._rollout_raw: list[np.ndarray] = []
+        self.rollouts_trained = 0
 
     def reset(self):
         return self.venv.reset()
@@ -173,6 +179,8 @@ class RNDBonus(VecEnvWrapper):
         if self.frames_seen <= self.warmup_frames:
             bonus = np.zeros_like(bonus)
         self.last_frames, self.last_bonus = frames, bonus
+        self._rollout_frames.append(frames)
+        self._rollout_raw.append(raw)
 
         paid = self.coef * bonus
         self._attempt_bonus += paid
@@ -181,3 +189,30 @@ class RNDBonus(VecEnvWrapper):
             infos[i]["rnd"] = {"bonus": float(self._attempt_bonus[i]), "reward": float(self._attempt_reward[i])}
             self._attempt_bonus[i] = self._attempt_reward[i] = 0.0
         return obs, (rewards + paid).astype(np.float32), dones, infos
+
+    def train_on_rollout(self) -> dict[str, float]:
+        """Train the predictor on the frames since the last call; return numbers to log."""
+        frames, raw = np.concatenate(self._rollout_frames), np.concatenate(self._rollout_raw)
+        self._rollout_frames, self._rollout_raw = [], []
+        loss = self.rnd.fit(frames)
+        self.rollouts_trained += 1
+        return {
+            "rnd/predictor_loss": loss,
+            "rnd/bonus_raw": float(raw.mean()),  # before scaling: falls as screens become familiar
+            "rnd/bonus_scale": float(np.sqrt(self.returns.var)),
+        }
+
+
+class RNDUpdate(BaseCallback):
+    """Train RND's predictor after every rollout, and log what the bonus paid next to the game's reward."""
+
+    def _on_step(self) -> bool:
+        for info in self.locals["infos"]:
+            if paid := info.get("rnd"):  # the Attempt that copy was playing just ended
+                self.logger.record_mean("rnd/attempt_bonus", paid["bonus"])
+                self.logger.record_mean("rnd/attempt_reward", paid["reward"])
+        return True
+
+    def _on_rollout_end(self) -> None:
+        for key, value in unwrap_vec_wrapper(self.model.get_env(), RNDBonus).train_on_rollout().items():
+            self.logger.record(key, value)
