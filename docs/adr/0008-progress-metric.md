@@ -11,6 +11,6 @@ Clear Rate is 0 for every weak Contender, which hides the differences between th
 - Any Map with an exit line gets a Progress number without manual work, which M5 and M9 need.
 - Simplifications, each one a known way the number can be off:
   - Walls are one-sided lines, impassable lines, and two-sided lines whose floors differ by more than 24 units. Areas reachable only by dropping down a ledge (on `E1M1`: the courtyard west of the start, the zigzag over the nukage) count as unreachable; while the player stands there, Progress stays at its best value so far.
-  - Doors are treated as open, and locked doors as unlocked. From M5 on, a Map with keys needs the route through the key to be part of the distance, or Progress will reward walking up to a locked door.
-  - Lifts, crushers and teleporters are ignored.
+  - Doors are treated as open, and locked doors as unlocked. From M5 on, a Map with keys needs the route through the key to be part of the distance, or Progress will reward walking up to a locked door. *Amended by ADR 0013: Maps with keys are scored with the `keyed` rule.*
+  - Lifts, crushers and teleporters are ignored. *Amended by ADR 0013: lifts (and doors opened by a switch or a shot) are passable.*
 - On `E1M1` the spawn is 4761 units from the exit on foot, against 2184 in a straight line. A random agent that crosses the start room to its east door scores about 0.2 without leaving the room. Read Progress as "share of the route", not "share of the Map".

@@ -94,7 +94,7 @@ The single fixed procedure that measures any Contender: same Maps, same seeds, s
 _Avoid_: benchmark, tests
 
 **Eval Spec**:
-One named, frozen set of Eval Suite parameters: Map, Difficulty, seeds, and tic limit, such as `e1m1-v1`; or, for a Scenario, the Scenario and seeds, such as `basic-v1`. Scoreboard rows are comparable only within one Eval Spec; changing any parameter means a new name.
+One named, frozen set of Eval Suite parameters: Map, Difficulty, seeds, tic limit, and Progress rule, such as `e1m1-v1`; or, for a Scenario, the Scenario and seeds, such as `basic-v1`. Scoreboard rows are comparable only within one Eval Spec; changing any parameter means a new name.
 _Avoid_: config, settings, benchmark version
 
 **Attempt Session**:
@@ -108,6 +108,14 @@ _Avoid_: input type, observation mode
 **Progress**:
 The share of the walking distance from spawn to the exit that an Attempt closed at its best moment, from 0 to 1, and 1 for a Clear. Measured from Privileged Information; never shown to a Contender.
 _Avoid_: completion, distance travelled, coverage
+
+**Progress rule**:
+How Progress measures the walk, named by each Eval Spec: `doors-open`, every door counted as open (ADR 0008); or `keyed`, the route through the keys the Map needs, given the keys held (ADR 0013). Equal on a Map without keys. A training reward may pay a different rule from the one its Eval Spec scores with.
+_Avoid_: progress mode, progress version
+
+**Failure category**:
+A short label for how a failed Attempt ended, given by watching it, such as "stuck near the start until the time ran out" or "killed in combat near the exit". Listed with counts in a milestone's Results.
+_Avoid_: error type, failure mode
 
 **Scoreboard**:
 The table of Eval Suite results, one row per Contender per Eval Spec. Map rows and Scenario rows are shown as two tables.
