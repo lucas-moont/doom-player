@@ -1,5 +1,6 @@
 """Progress on E1M1: 0 at spawn, 1 at the exit, walls respected."""
 
+import hashlib
 import math
 
 import numpy as np
@@ -12,6 +13,10 @@ pytestmark = pytest.mark.skipif(not WAD_PATH.exists(), reason="needs wads/doom.w
 
 E1M1_START = (1056, -3616)
 E1M1_EXIT_SWITCH = (2912, -4768)  # midpoint of linedef 326, action 11
+# Fingerprint of E1M1's distance field as every E1M1 result so far measured it.
+# If it changes, the meaning of Progress on the E1M1 Scoreboard rows changes.
+E1M1_START_DISTANCE = 4760.625683894423
+E1M1_DISTANCE_SHA256 = "4c85a35f868185b82fe8649811c424aff1497dbe9bf127e0337ad55333719fc8"
 
 
 @pytest.fixture(scope="module")
@@ -23,6 +28,11 @@ def test_start_is_reachable_and_farther_than_a_straight_line(field):
     straight = math.dist(E1M1_START, E1M1_EXIT_SWITCH)
     assert field.start == E1M1_START
     assert straight < field.start_distance < math.inf
+
+
+def test_e1m1_field_is_pinned(field):
+    assert field.start_distance == pytest.approx(E1M1_START_DISTANCE)
+    assert hashlib.sha256(field.distance.tobytes()).hexdigest() == E1M1_DISTANCE_SHA256
 
 
 def test_exit_is_at_distance_zero(field):
