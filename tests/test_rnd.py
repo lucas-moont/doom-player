@@ -127,7 +127,7 @@ def test_each_finished_attempt_reports_its_bonus_and_reward():
         _, _, dones, infos = env.step(np.zeros(2, dtype=int))
     assert dones.all()
     for info in infos:
-        assert info["rnd"]["reward"] == pytest.approx(3.0)
+        assert info["rnd"]["scaled_reward"] == pytest.approx(3.0)
         assert info["rnd"]["bonus"] > 0
 
 
@@ -159,3 +159,12 @@ def test_the_wrapper_state_survives_a_round_trip(tmp_path):
     copy = RNDBonus(rooms(), coef=0.5, rnd=RND(seed=9, device="cpu"))
     copy.load(tmp_path / "rnd.pt")
     assert np.allclose(play(copy, 2), play(env, 2))  # the same bonus for the same screens
+
+
+def test_the_warm_up_leaves_the_bonus_scale_untouched():
+    # Before the pixel statistics settle the errors are noise; a running spread never forgets them.
+    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"), warmup_frames=4)
+    play(env, 2)
+    assert env.returns.count < 1  # only its starting epsilon
+    play(env, 1)
+    assert env.returns.count >= 1

@@ -23,7 +23,8 @@ from stable_baselines3.common.utils import get_device
 from stable_baselines3.common.vec_env import VecEnv, VecEnvWrapper, unwrap_vec_wrapper
 from torch import nn
 
-FRAME_SIZE = 84  # one gray frame of the policy view
+from doom_player.scenarios import FRAME_SIZE  # one gray frame of the policy view
+
 FEATURES = 512  # how many numbers the target turns a screen into
 CLIP = 5.0  # normalised pixels are clipped to this many spreads from the mean
 # CleanRL's settings for the predictor and the bonus's discount.
@@ -80,16 +81,21 @@ class RND:
         self.predictor.to(self.device)
         self.optimizer = torch.optim.Adam(self.predictor.parameters(), lr=LEARNING_RATE)
         self.pixels = RunningMeanStd(shape=(FRAME_SIZE, FRAME_SIZE))
+        self._pixels_changed()
         self._rng = np.random.default_rng(seed)  # minibatch order
 
     def update_obs_stats(self, frames: np.ndarray) -> None:
         """Fold gray frames, uint8 [n, 84, 84], into the running mean and spread of each pixel."""
         self.pixels.update(frames.astype(np.float64))
+        self._pixels_changed()
+
+    def _pixels_changed(self) -> None:
+        # On the device once per change, not once per frame batch read.
+        self._mean = torch.as_tensor(self.pixels.mean, dtype=torch.float32, device=self.device)
+        self._std = torch.as_tensor(np.sqrt(self.pixels.var), dtype=torch.float32, device=self.device)
 
     def _normalise(self, frames: torch.Tensor) -> torch.Tensor:
-        mean = torch.as_tensor(self.pixels.mean, dtype=torch.float32, device=self.device)
-        std = torch.as_tensor(np.sqrt(self.pixels.var), dtype=torch.float32, device=self.device)
-        return ((frames.float() - mean) / std).clamp(-CLIP, CLIP).unsqueeze(1)
+        return ((frames.float() - self._mean) / self._std).clamp(-CLIP, CLIP).unsqueeze(1)
 
     def _on_device(self, frames: np.ndarray) -> torch.Tensor:
         return torch.from_numpy(frames).to(self.device)  # still uint8: a quarter of the bytes to copy
@@ -131,6 +137,7 @@ class RND:
         self.predictor.load_state_dict(state["predictor"])
         self.optimizer.load_state_dict(state["optimizer"])
         _load_rms(self.pixels, state["pixels"])
+        self._pixels_changed()
         self._rng.bit_generator.state = state["rng"]
 
 
@@ -145,8 +152,10 @@ class RNDBonus(VecEnvWrapper):
     ends, that is the info's terminal observation, not the next spawn.
 
     The raw bonus is divided by the running spread of its own discounted sum,
-    so `coef` means the same whatever scale the errors have. No bonus is paid
-    for the first `warmup_frames` frames, while the pixel statistics settle.
+    so `coef` means the same whatever scale the errors have. For the first
+    `warmup_frames` frames only the pixel statistics learn: nothing is paid,
+    and the spread starts from the settled bonus, not from the warm-up's
+    noise, which a running spread would never forget (as in CleanRL).
     """
 
     def __init__(self, venv: VecEnv, coef: float, rnd: RND, warmup_frames: int = 0):
@@ -156,7 +165,7 @@ class RNDBonus(VecEnvWrapper):
         self.returns = RunningMeanStd(shape=())  # spread of the discounted raw bonus
         self._discounted = np.zeros(self.num_envs)
         self._attempt_bonus = np.zeros(self.num_envs)  # paid so far in each copy's Attempt
-        self._attempt_reward = np.zeros(self.num_envs)  # the reward underneath, as it reached this wrapper
+        self._attempt_reward = np.zeros(self.num_envs)  # the reward it is added to: shaped, then rescaled
         self._rollout_frames: list[np.ndarray] = []  # what the predictor learns from next
         self._rollout_raw: list[np.ndarray] = []
 
@@ -186,17 +195,19 @@ class RNDBonus(VecEnvWrapper):
         self.rnd.update_obs_stats(frames)
         self.frames_seen += len(frames)
         raw = self.rnd.bonus(frames)
-        self._discounted = self._discounted * INTRINSIC_GAMMA + raw
-        self.returns.update(self._discounted)
-        warm = self.frames_seen > self.warmup_frames
-        paid = self.coef * raw / np.sqrt(self.returns.var + 1e-8) if warm else np.zeros_like(raw)
+        if self.frames_seen > self.warmup_frames:
+            self._discounted = self._discounted * INTRINSIC_GAMMA + raw
+            self.returns.update(self._discounted)
+            paid = self.coef * raw / np.sqrt(self.returns.var + 1e-8)
+        else:
+            paid = np.zeros_like(raw)
         self._rollout_frames.append(frames)
         self._rollout_raw.append(raw)
 
         self._attempt_bonus += paid
         self._attempt_reward += rewards
         for i in ended:
-            infos[i]["rnd"] = {"bonus": float(self._attempt_bonus[i]), "reward": float(self._attempt_reward[i])}
+            infos[i]["rnd"] = {"bonus": float(self._attempt_bonus[i]), "scaled_reward": float(self._attempt_reward[i])}
             self._attempt_bonus[i] = self._attempt_reward[i] = 0.0
         return obs, (rewards + paid).astype(np.float32), dones, infos
 
@@ -221,7 +232,7 @@ class RNDBonus(VecEnvWrapper):
         torch.save(state, path)
 
     def load(self, path: Path) -> None:
-        state = torch.load(path)
+        state = torch.load(path, map_location=self.rnd.device)  # saved on the GPU, maybe loaded without one
         self.rnd.load_state_dict(state["rnd"])
         _load_rms(self.returns, state["returns"])
         if len(state["discounted"]) == self.num_envs:  # else a different number of copies: start the sums afresh
@@ -230,13 +241,18 @@ class RNDBonus(VecEnvWrapper):
 
 
 class RNDUpdate(BaseCallback):
-    """Train RND's predictor after every rollout, and log what the bonus paid next to the game's reward."""
+    """Train RND's predictor after every rollout, and log what it paid per Attempt.
+
+    `rnd/attempt_scaled_reward` is the reward the bonus is added to, on the same
+    scale: the Map's reward plus shaping, as VecNormalize rescaled it. It is not
+    the game's reward that `rollout/ep_rew_mean` shows.
+    """
 
     def _on_step(self) -> bool:
         for info in self.locals["infos"]:
             if paid := info.get("rnd"):  # the Attempt that copy was playing just ended
                 self.logger.record_mean("rnd/attempt_bonus", paid["bonus"])
-                self.logger.record_mean("rnd/attempt_reward", paid["reward"])
+                self.logger.record_mean("rnd/attempt_scaled_reward", paid["scaled_reward"])
         return True
 
     def _on_rollout_end(self) -> None:

@@ -103,8 +103,10 @@ class TrainConfig:
             raise ValueError("--tic-limit applies to Maps only, and must be positive")
         if self.rnd_coef < 0:
             raise ValueError("--rnd-coef must be 0 (no bonus) or positive")
-        if self.rnd_coef and "rnd" not in self.label:
-            raise ValueError("a Training Run with --rnd-coef needs a --label naming it, such as shaped-rnd")
+        if bool(self.rnd_coef) != ("rnd" in self.label.split("-")):
+            raise ValueError("--rnd-coef and a label with an 'rnd' part, such as shaped-rnd, go together")
+        if self.tic_limit is not None and not self.label:
+            raise ValueError("a Training Run with --tic-limit needs a --label naming it: its Attempts differ")
         if self.n_envs > SEED_SPACING:
             raise ValueError(f"at most {SEED_SPACING} copies, or neighbouring training seeds would share games")
 

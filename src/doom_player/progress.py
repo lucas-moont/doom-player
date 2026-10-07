@@ -117,16 +117,10 @@ class KeyedRoute:
         """Every door open: the M4 rule, and the picture's background."""
         return distance_field(self.map, self.wad_path)
 
-    @cached_property
+    @property
     def keys(self) -> dict[str, list[tuple[float, float]]]:
         """Where each colour's keys lie at this Difficulty, from the WAD."""
-        editor = omg.mapedit.MapEditor(omg.WAD(str(self.wad_path)).maps[self.map])
-        present = lambda t: t.flags & SKILL_FLAGS[self.difficulty] and not t.flags & MULTIPLAYER_ONLY  # noqa: E731
-        return {
-            colour: spots
-            for colour, types in KEY_THINGS.items()
-            if (spots := [(t.x, t.y) for t in editor.things if t.type in types and present(t)])
-        }
+        return _key_spots(self.map, self.difficulty, self.wad_path)
 
     def _field(self, held: frozenset[str], goal=None) -> DistanceField:
         return distance_field(self.map, self.wad_path, locked=frozenset(LOCKS) - held, goal=goal)
@@ -151,6 +145,17 @@ class KeyedRoute:
     @cached_property  # read on every step while training; it never changes
     def start_remaining(self) -> float:
         return self.remaining(*self.field.start)
+
+
+@cache  # every Attempt builds a new KeyedRoute; the WAD is read once per Map and Difficulty
+def _key_spots(map_name: str, difficulty: int, wad_path: Path) -> dict[str, list[tuple[float, float]]]:
+    editor = omg.mapedit.MapEditor(omg.WAD(str(wad_path)).maps[map_name])
+    present = lambda t: t.flags & SKILL_FLAGS[difficulty] and not t.flags & MULTIPLAYER_ONLY  # noqa: E731
+    return {
+        colour: spots
+        for colour, types in KEY_THINGS.items()
+        if (spots := [(t.x, t.y) for t in editor.things if t.type in types and present(t)])
+    }
 
 
 @cache

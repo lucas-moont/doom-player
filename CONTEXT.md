@@ -133,6 +133,10 @@ _Avoid_: score (alone), return
 Extra reward added during a Training Run only, on top of the Scenario reward or a Map's exit reward, to steer what the policy learns: for example, points per kill and a cost per health point lost on a Scenario, or points for Progress gained and a cost for dying on a Map. The Eval Suite never sees it; a checkpoint's `training.json` records it. Terms read from the engine are Privileged Information and are declared in Results.
 _Avoid_: custom reward, bonus (alone)
 
+**Exploration bonus**:
+Reward shaping that pays for reaching screens the policy has rarely seen, so it keeps trying new places when the game's reward is too far away to guide it. In this project it is RND (Random Network Distillation): the bonus is how badly a small network guesses a fixed random network's output for the screen. It reads only the screen the policy sees; `training.json` records it under `rnd`, next to `reward_shaping`.
+_Avoid_: curiosity (alone), novelty reward, bonus (alone)
+
 **Reward hacking**:
 A policy collecting reward in a way the reward's designer did not intend, such as charging forward to die in `DeadlyCorridor` because distance pays more than death costs. Caught by watching behaviour (videos, button and kill counts), not by the score, which goes up.
 _Avoid_: cheating, exploit (alone)
