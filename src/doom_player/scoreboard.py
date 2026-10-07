@@ -47,6 +47,12 @@ def training_cost(row: dict) -> str:
     return f"{row['training_steps']:,} steps, {round(row['training_wall_clock_s'] / 60)} min"
 
 
+def contender_cell(row: dict) -> str:
+    """The Contender's name, and where it trained when that is not the row's Map."""
+    elsewhere = row.get("trained_on") and row["trained_on"] != row["map"]
+    return f"{row['contender']} (trained on `{row['trained_on']}`)" if elsewhere else row["contender"]
+
+
 def seeds_cell(seeds: list[int]) -> str:
     return f"{len(seeds)} ({seeds[0]}-{seeds[-1]})"
 
@@ -63,7 +69,7 @@ def table(rows: list[dict]) -> str:
         HEADER,
         [
             [
-                r["contender"],
+                contender_cell(r),
                 f"`{r['map']}`",
                 str(r["difficulty"]),
                 f"{r['clear_rate']:.0%}",

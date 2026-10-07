@@ -94,3 +94,54 @@ def test_clock_matches_engine_while_playing():
         assert session._clock == session._tics_played() == 47
     finally:
         session.close()
+
+
+def test_keyed_session_records_its_rule_and_the_keys_held():
+    session = AttemptSession("probe", map="E1M2", tic_limit=35, progress_rule="keyed")
+    try:
+        while not session.finished:
+            session.press([], 4)
+    finally:
+        session.close()
+    assert session.record.progress_rule == "keyed"
+    assert session.record.keys_held == []
+
+
+def test_picking_up_the_red_key_counts_as_held():
+    # Warp (a console command, taking effect on the next action) beside the
+    # red key on E1M2, then walk into it: a warp alone does not touch items.
+    session = AttemptSession("probe", map="E1M2", tic_limit=350, progress_rule="keyed")
+    try:
+        assert session.progress == 0.0
+        session.game.send_game_command("warp 1136 310")
+        session.press([], 1)
+        assert session.keys_held == frozenset()
+        for _ in range(4):
+            session.press(["MOVE_FORWARD"], 4)
+        assert session.keys_held == {"red"}
+        assert session.progress > 0.2  # the walk to the key counts
+    finally:
+        session.close()
+
+
+def test_reading_keys_does_not_change_the_game():
+    screens = {}
+    for rule in ("doors-open", "keyed"):
+        contender = RandomContender()
+        session = AttemptSession(contender.name, map="E1M2", seed=3, tic_limit=700, progress_rule=rule)
+        contender.reset(3, session.buttons)
+        try:
+            while not session.finished:
+                session.act(contender.act(session.observe()), contender.tics_per_action)
+                if not session.finished:
+                    last = session.screen().copy()
+        finally:
+            session.close()
+        screens[rule] = (last, session.record.actions, session.record.died)
+    assert screens["doors-open"][1:] == screens["keyed"][1:]
+    assert (screens["doors-open"][0] == screens["keyed"][0]).all()
+
+
+def test_unknown_progress_rule_is_refused():
+    with pytest.raises(ValueError, match="Progress rule"):
+        AttemptSession("probe", progress_rule="closest-door")

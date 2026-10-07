@@ -35,8 +35,16 @@ TRAINING_SEEDS_FROM = 1000  # Eval Specs use small game seeds (e1m1-v1: 0 to 4)
 class MapEnv(gym.Env):
     """One Attempt per episode on an original Map, through a fresh AttemptSession."""
 
-    def __init__(self, map: str = "E1M1", difficulty: int = 3, tic_limit: int = 6300, contender: str = "training"):
+    def __init__(
+        self,
+        map: str = "E1M1",
+        difficulty: int = 3,
+        tic_limit: int = 6300,
+        contender: str = "training",
+        progress_rule: str = "doors-open",
+    ):
         self.map, self.difficulty, self.tic_limit = map, difficulty, tic_limit
+        self.progress_rule = progress_rule  # the rule the record keeps; shaping may read another
         self.contender = contender
         self.observation_space = gym.spaces.Box(0, 255, (240, 320, 3), np.uint8)
         self.action_space = gym.spaces.Discrete(len(ACTIONS))
@@ -58,7 +66,7 @@ class MapEnv(gym.Env):
             game_seed = int(options["game_seed"])
         else:
             game_seed = int(self.np_random.integers(TRAINING_SEEDS_FROM, 2**31 - 1))
-        self.session = AttemptSession(self.contender, self.map, self.difficulty, game_seed, self.tic_limit)
+        self.session = AttemptSession(self.contender, self.map, self.difficulty, game_seed, self.tic_limit, self.progress_rule)
         if not self.pressed:  # the buttons are fixed by doom.cfg: build the table once
             unknown = {b for names in ACTIONS.values() for b in names} - set(self.session.buttons)
             if unknown:
@@ -100,21 +108,26 @@ class ProgressShaping(gym.Wrapper):
     from the player's position, Privileged Information the policy never sees;
     it is declared in Results (ADR 0002). The Map's own reward stays in
     `info["raw_reward"]`.
+
+    `progress_rule` picks the Progress paid for, which may differ from the one
+    the record keeps: M4's recipe pays doors-open Progress, where a locked door
+    counts as open, even on a Map scored by the keyed rule (ADR 0013).
     """
 
-    def __init__(self, env: gym.Env, progress_reward: float, death_penalty: float):
+    def __init__(self, env: gym.Env, progress_reward: float, death_penalty: float, progress_rule: str = "doors-open"):
         super().__init__(env)
         self.progress_reward = progress_reward
         self.death_penalty = death_penalty
+        self.progress_rule = progress_rule
 
     def reset(self, **kwargs):
         result = self.env.reset(**kwargs)
-        self._paid = self.unwrapped.session.progress  # Progress already paid for
+        self._paid = self.unwrapped.session.progress_under(self.progress_rule)  # Progress already paid for
         return result
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
-        progress = self.unwrapped.session.progress
+        progress = self.unwrapped.session.progress_under(self.progress_rule)
         bonus = self.progress_reward * (progress - self._paid)
         self._paid = progress
         if "record" in info and info["record"]["died"]:

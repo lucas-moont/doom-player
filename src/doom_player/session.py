@@ -7,8 +7,9 @@ ends in the same `AttemptRecord`.
 
 What a Contender may see is built in `observe` and limited to Human-equivalent
 Observations (ADR 0002): the screen, the automap, and numbers the HUD shows.
-The player's position is Privileged Information; it is read only here, to
-measure Progress, and never leaves the session.
+The player's position, and on Maps with keys which keys are held, are
+Privileged Information; they are read only here, to measure Progress, and
+never reach a Contender.
 """
 
 import os
@@ -19,7 +20,7 @@ import numpy as np
 import vizdoom as vzd
 
 from doom_player.paths import WAD_PATH
-from doom_player.progress import ProgressMeter, distance_field
+from doom_player.progress import KeyedRoute, ProgressMeter, distance_field
 
 # Numbers a human reads off the status bar. Key cards have no game variable;
 # they are visible in the screen's HUD like any other part of the status bar.
@@ -36,6 +37,15 @@ HUD_VARIABLES = {
 
 OBSERVATION_CLASS = "human-equivalent"
 MAX_TICS_PER_ACTION = 35
+
+# Progress rules (ADR 0013): every door open, as in M4; or the route through the keys.
+PROGRESS_RULES = ("doors-open", "keyed")
+# A key the player picks up leaves ViZDoom's list of objects (tested on E1M2).
+KEY_OBJECTS = {
+    "blue": {"BlueCard", "BlueSkull"},
+    "yellow": {"YellowCard", "YellowSkull"},
+    "red": {"RedCard", "RedSkull"},
+}
 
 
 @dataclass
@@ -57,6 +67,8 @@ class AttemptRecord:
     progress: float | None = None
     wall_clock_s: float = 0.0
     tokens: int | None = None
+    progress_rule: str = "doors-open"  # records written before M5 have none: they are doors-open
+    keys_held: list[str] | None = None  # Privileged Information, for measuring only; None if not read
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -79,13 +91,23 @@ class AttemptSession:
     difficulty: int = 3
     seed: int = 0
     tic_limit: int = 6300
+    progress_rule: str = "doors-open"
     record: AttemptRecord = field(init=False)
 
     def __post_init__(self) -> None:
         if not WAD_PATH.exists():
             raise SystemExit(f"Original Maps need the purchased WAD at {WAD_PATH}")
-        self.progress_meter = ProgressMeter(distance_field(self.map))
+        if self.progress_rule not in PROGRESS_RULES:
+            raise ValueError(f"unknown Progress rule {self.progress_rule!r}; known: {PROGRESS_RULES}")
+        # The doors-open rule is always measured too: M4's training reward reads it.
+        self.meters = {"doors-open": ProgressMeter(distance_field(self.map))}
+        if self.progress_rule == "keyed":
+            self.meters["keyed"] = ProgressMeter(KeyedRoute(self.map, self.difficulty))
+        self.progress_meter = self.meters[self.progress_rule]  # the rule the record keeps
+        self._reads_keys = self.progress_rule == "keyed" and bool(self.progress_meter.ruler.keys)
         self.game = self._build_game()
+        self._keys_at_spawn = self._key_objects() if self._reads_keys else {}
+        self.keys_held: frozenset[str] = frozenset()
         self.buttons = [b.name for b in self.game.get_available_buttons()]
         self.record = AttemptRecord(
             contender=self.contender,
@@ -94,9 +116,15 @@ class AttemptSession:
             seed=self.seed,
             tic_limit=self.tic_limit,
             observation_class=OBSERVATION_CLASS,
+            progress_rule=self.progress_rule,
         )
         self._started = time.perf_counter()
         self._measure()
+
+    @classmethod
+    def for_spec(cls, contender: str, spec, seed: int) -> "AttemptSession":
+        """An Attempt under an Eval Spec's rules: every scored Attempt starts here."""
+        return cls(contender, spec.map, spec.difficulty, seed, spec.tic_limit, spec.progress_rule)
 
     def _build_game(self) -> vzd.DoomGame:
         game = vzd.DoomGame()
@@ -108,6 +136,8 @@ class AttemptSession:
         game.set_audio_buffer_enabled(False)  # no Contender listens yet
         game.set_screen_format(vzd.ScreenFormat.RGB24)
         game.set_available_game_variables(list(HUD_VARIABLES.values()))
+        # Privileged Information, read only to know which keys are held; never observed.
+        game.set_objects_info_enabled(self._reads_keys)
         # PLAYER mode (doom.cfg's default) is synchronous: the game waits for each action.
         game.set_mode(vzd.Mode.PLAYER)
         game.set_episode_timeout(self.tic_limit)
@@ -135,8 +165,14 @@ class AttemptSession:
 
     @property
     def progress(self) -> float:
-        """Progress so far; a Clear counts as 1. Training reward and the record read this one rule."""
-        return 1.0 if self.record.cleared else self.progress_meter.progress
+        """Progress so far under the session's rule; a Clear counts as 1. The record keeps this one."""
+        return self.progress_under(self.progress_rule)
+
+    def progress_under(self, rule: str) -> float:
+        """Progress so far under `rule`, which a training reward may read instead of the record's."""
+        if rule not in self.meters:
+            raise ValueError(f"this session measures {sorted(self.meters)}, not {rule!r}")
+        return 1.0 if self.record.cleared else self.meters[rule].progress
 
     def act(self, pressed: list[bool], tics: int, on_frame=None) -> float:
         """Hold the given buttons for `tics` tics; return the reward.
@@ -187,11 +223,20 @@ class AttemptSession:
         # doom.cfg starts the episode clock at tic 1.
         return self.game.get_episode_time() - 1
 
+    def _key_objects(self) -> dict[str, set[int]]:
+        """The key objects on the Map now, by colour."""
+        objects = self.game.get_state().objects
+        return {colour: {o.id for o in objects if o.name in names} for colour, names in KEY_OBJECTS.items()}
+
     def _measure(self) -> None:
         # Privileged Information, used for measurement only.
         x = self.game.get_game_variable(vzd.GameVariable.POSITION_X)
         y = self.game.get_game_variable(vzd.GameVariable.POSITION_Y)
-        self.progress_meter.visit(x, y)
+        if self._reads_keys and not self.finished:  # a finished game has no state: keep the last keys
+            now = self._key_objects()
+            self.keys_held = frozenset(c for c, ids in self._keys_at_spawn.items() if ids - now[c])
+        for meter in self.meters.values():
+            meter.visit(x, y, self.keys_held)
 
     def _finish(self) -> None:
         r = self.record
@@ -201,6 +246,7 @@ class AttemptSession:
         r.terminated = not r.truncated
         r.cleared = r.terminated and not r.died
         r.progress = round(self.progress, 4)
+        r.keys_held = sorted(self.keys_held) if self._reads_keys else None
         r.wall_clock_s = round(time.perf_counter() - self._started, 2)
 
     def close(self) -> None:

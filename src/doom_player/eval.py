@@ -10,6 +10,7 @@ every seed is done, the Contender's Scoreboard row is written to
 
 import argparse
 import json
+import math
 import subprocess
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -35,11 +36,17 @@ class EvalSpec:
     difficulty: int
     seeds: tuple[int, ...]
     tic_limit: int
+    progress_rule: str = "doors-open"  # how Progress is measured: every door open, or "keyed" (ADR 0013)
 
 
 # Settled with the owner on 2026-10-01 (M1 brief, design question 2).
 STANDARD_E1M1 = EvalSpec(name="e1m1-v1", map="E1M1", difficulty=3, seeds=(0, 1, 2, 3, 4), tic_limit=6300)
-SPECS = {STANDARD_E1M1.name: STANDARD_E1M1}
+# M5 brief, 2026-10-07: E1M1's tics per unit of route (6300 / 4761) times E1M2's
+# keyed route (9177 units), rounded up to whole minutes: 6 minutes.
+STANDARD_E1M2 = EvalSpec(
+    name="e1m2-v1", map="E1M2", difficulty=3, seeds=(0, 1, 2, 3, 4), tic_limit=12600, progress_rule="keyed"
+)
+SPECS = {spec.name: spec for spec in (STANDARD_E1M1, STANDARD_E1M2)}
 
 
 def attempts_path(results_dir: Path, contender: str, spec: EvalSpec) -> Path:
@@ -76,17 +83,20 @@ def run_eval(
     results_dir: Path = RESULTS_DIR,
     stop_after: int | None = None,
     video_dir: Path | None = None,
+    transfer: bool = False,
 ) -> dict | None:
     """Play the spec's missing Attempts; return the Scoreboard row once all are done.
 
     `stop_after` ends the run early after that many new Attempts, the way a
     subscription limit would; calling again resumes. With `video_dir`, every
-    Attempt played is also filmed, one frame per tic.
+    Attempt played is also filmed, one frame per tic. `transfer` lets a learned
+    Contender play a Map it did not train on; its row says where it trained.
     """
     path = attempts_path(results_dir, contender.name, spec)
     records = read_records(path)
     check_rules(records, spec, contender.training)
-    check_trained_on(contender, spec.map)  # before any video file is opened
+    if not transfer:
+        check_trained_on(contender, spec.map)  # before any video file is opened
     done = {r["seed"] for r in records}
     played = 0
     for seed in spec.seeds:
@@ -105,7 +115,7 @@ def run_eval(
             if whole:
                 record = contender.play_attempt(spec, seed, on_frame)
             else:
-                session = AttemptSession(contender.name, spec.map, spec.difficulty, seed, spec.tic_limit)
+                session = AttemptSession.for_spec(contender.name, spec, seed)
                 record = play(contender, session, on_frame)
         finally:
             if video:
@@ -118,12 +128,14 @@ def run_eval(
 
 def check_rules(records: list[dict], spec: EvalSpec, training: dict | None = None) -> None:
     """Refuse to mix Attempts played under different rules, or by different policies, in one file."""
+    rules = (spec.map, spec.difficulty, spec.tic_limit, spec.progress_rule)
     for r in records:
-        played = (r["map"], r["difficulty"], r["tic_limit"])
-        if played != (spec.map, spec.difficulty, spec.tic_limit):
+        # Records from before M5 have no Progress rule: they were measured with every door open.
+        played = (r["map"], r["difficulty"], r["tic_limit"], r.get("progress_rule", "doors-open"))
+        if played != rules:
             raise SystemExit(
                 f"seed {r['seed']} in {spec.name} was played as {played}, but the spec now says "
-                f"{(spec.map, spec.difficulty, spec.tic_limit)}. Give the changed spec a new name."
+                f"{rules}. Give the changed spec a new name."
             )
         check_checkpoint(r, spec.name, training)
 
@@ -144,12 +156,18 @@ def check_checkpoint(record: dict, spec_name: str, training: dict | None) -> Non
         )
 
 
+def trained_on(training: dict | None) -> str | None:
+    """The Map or Scenario a learned Contender trained on; None for an untrained one."""
+    return (training.get("map") or training.get("scenario")) if training else None
+
+
 def check_trained_on(contender, game: str) -> None:
     """Refuse to measure a learned Contender on a Map or Scenario other than the one it trained on."""
-    if contender.training:
-        trained_on = contender.training.get("map") or contender.training.get("scenario")
-        if trained_on != game:
-            raise SystemExit(f"{contender.name} was trained on {trained_on}, not {game}")
+    if contender.training and trained_on(contender.training) != game:
+        raise SystemExit(
+            f"{contender.name} was trained on {trained_on(contender.training)}, not {game}; "
+            "pass --transfer to measure it there on purpose"
+        )
 
 
 def training_columns(training: dict | None) -> dict:
@@ -163,6 +181,9 @@ def training_columns(training: dict | None) -> dict:
 def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict], training: dict | None = None) -> dict:
     by_seed = {r["seed"]: r for r in records}
     records = [by_seed[s] for s in spec.seeds]
+    unmeasured = [r["seed"] for r in records if not math.isfinite(r["progress"])]
+    if unmeasured:  # a NaN mean would land on the Scoreboard and sort as nothing at all
+        raise SystemExit(f"seeds {unmeasured} in {spec.name} have no finite Progress; fix the meter, then measure again")
     n = len(records)
     tokens = [r["tokens"] for r in records if r["tokens"] is not None]
     return {
@@ -172,6 +193,7 @@ def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict], training
         "difficulty": spec.difficulty,
         "seeds": list(spec.seeds),
         "tic_limit": spec.tic_limit,
+        "progress_rule": spec.progress_rule,
         "clear_rate": sum(r["cleared"] for r in records) / n,
         "progress_mean": round(sum(r["progress"] for r in records) / n, 4),
         "progress_by_seed": [r["progress"] for r in records],
@@ -179,6 +201,7 @@ def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict], training
         "tokens_per_attempt": round(sum(tokens) / n) if tokens else 0,
         "wall_clock_s_per_attempt": round(sum(r["wall_clock_s"] for r in records) / n, 1),
         **training_columns(training),
+        "trained_on": trained_on(training),
         "measured_on": date.today().isoformat(),
         "commit": _git_commit(),
     }
@@ -226,6 +249,9 @@ def main() -> None:
     parser.add_argument("--spec", default=STANDARD_E1M1.name, choices=sorted({*SPECS, *SCENARIO_SPECS}))
     parser.add_argument("--checkpoint", type=Path, help="the model.zip a `ppo` Contender plays from")
     parser.add_argument("--video", action="store_true", help="save each Attempt to videos/")
+    parser.add_argument(
+        "--transfer", action="store_true", help="measure a learned Contender on a Map it did not train on"
+    )
     args = parser.parse_args()
     if args.checkpoint and args.contender != "ppo":
         parser.error(f"{args.contender!r} plays without a checkpoint")
@@ -242,7 +268,7 @@ def main() -> None:
         contender = PPOMapContender(args.checkpoint)
     else:
         contender = CONTENDERS[args.contender]()
-    row = run_eval(contender, spec, video_dir=REPO_ROOT / "videos" if args.video else None)
+    row = run_eval(contender, spec, video_dir=REPO_ROOT / "videos" if args.video else None, transfer=args.transfer)
     write_row(row)
     log_to_wandb(row, read_records(attempts_path(RESULTS_DIR, contender.name, spec)), spec)
     print(json.dumps(row, indent=2))
