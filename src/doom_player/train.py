@@ -16,24 +16,36 @@ import uuid
 from dataclasses import asdict, dataclass
 from functools import partial
 from pathlib import Path
+from typing import NamedTuple
 
 import wandb
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize, unwrap_vec_wrapper
 
-from doom_player.maps import ACTIONS, ProgressShaping, make_map_env
+from doom_player.eval import MAP_SPECS
+from doom_player.maps import ACTIONS, DEFAULT_PROGRESS_RULE, DEFAULT_TIC_LIMIT, ProgressShaping, make_map_env
 from doom_player.paths import REPO_ROOT
+from doom_player.rnd import RND, RNDBonus, RNDUpdate
 from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
 
 CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
 WANDB_PROJECT = "doom-player"
 SEED_SPACING = 1000  # at most this many game copies per Training Run; see train() for why
 REWARD_SCALE_FILE = "vecnormalize.pkl"  # VecNormalize's running reward statistics, saved beside model.zip
+RND_FILE = "rnd.pt"  # the RND bonus's networks and statistics, saved beside model.zip when it was paid
 SCENARIO_SHAPING = ("kill_reward", "health_penalty")
 MAP_SHAPING = ("progress_reward", "death_penalty")
+SHAPING_PROGRESS_RULE = "doors-open"  # M4's recipe pays every-door-open Progress, on every Map (ADR 0013)
+
+
+class MapRules(NamedTuple):
+    """How a Map Training Run's Attempts are played and measured."""
+
+    tic_limit: int
+    progress_rule: str  # the rule the record and the Progress curve keep; shaping pays its own
 
 
 @dataclass(frozen=True)
@@ -42,6 +54,7 @@ class TrainConfig:
     seed: int = 0  # the training seed: network weights and the games played while learning
     map: str | None = None  # ...an original Map, at `difficulty`
     difficulty: int = 3
+    tic_limit: int | None = None  # Maps: each Attempt's length; None takes the Map's Eval Spec's
     total_steps: int = 200_000
     n_envs: int = 8
     n_steps: int = 256  # steps each copy plays before one PPO update
@@ -61,6 +74,9 @@ class TrainConfig:
     # Maps (`maps.ProgressShaping`): the exit alone pays too rarely to learn from.
     progress_reward: float = 0.0
     death_penalty: float = 0.0
+    # Exploration bonus (`rnd.RNDBonus`): how much a new screen pays next to the
+    # rescaled game reward. Zero leaves training as in M4.
+    rnd_coef: float = 0.0
     recurrent: bool = False  # an LSTM policy (RecurrentPPO): a memory of the last seconds
     init_from: Path | None = None  # continue from this checkpoint, e.g. a lower Difficulty
     checkpoint_every: int = 0  # steps between intermediate checkpoints; 0 for none
@@ -83,6 +99,14 @@ class TrainConfig:
             raise ValueError("--difficulty is Doom's skill level, 1 to 5")
         if not re.fullmatch(r"[a-z0-9-]*", self.label):
             raise ValueError("--label may use lowercase letters, digits and dashes only: it names folders")
+        if self.tic_limit is not None and (self.scenario or self.tic_limit < 1):
+            raise ValueError("--tic-limit applies to Maps only, and must be positive")
+        if self.rnd_coef < 0:
+            raise ValueError("--rnd-coef must be 0 (no bonus) or positive")
+        if bool(self.rnd_coef) != ("rnd" in self.label.split("-")):
+            raise ValueError("--rnd-coef and a label with an 'rnd' part, such as shaped-rnd, go together")
+        if self.tic_limit is not None and not self.label:
+            raise ValueError("a Training Run with --tic-limit needs a --label naming it: its Attempts differ")
         if self.n_envs > SEED_SPACING:
             raise ValueError(f"at most {SEED_SPACING} copies, or neighbouring training seeds would share games")
 
@@ -106,13 +130,24 @@ class TrainConfig:
     @property
     def reward_shaping(self) -> dict | None:
         terms = {n: getattr(self, n) for n in (SCENARIO_SHAPING if self.scenario else MAP_SHAPING)}
-        return terms if any(terms.values()) else None
+        if not any(terms.values()):
+            return None
+        return terms if self.scenario else {**terms, "progress_rule": SHAPING_PROGRESS_RULE}
+
+    @property
+    def map_rules(self) -> MapRules:
+        """Maps: the Map's Eval Spec's rules, so training is read on the Scoreboard's ruler; `tic_limit` overrides."""
+        spec = MAP_SPECS.get(self.map)
+        rules = MapRules(spec.tic_limit, spec.progress_rule) if spec else MapRules(DEFAULT_TIC_LIMIT, DEFAULT_PROGRESS_RULE)
+        return rules._replace(tic_limit=self.tic_limit or rules.tic_limit)
 
     def env_factory(self):
         """How each training copy is built: the env, and the shaping wrapper (None without shaping)."""
         if self.scenario:
             return partial(make_scenario_env, self.scenario), RewardShaping if self.reward_shaping else None
-        return partial(make_map_env, self.map, self.difficulty), ProgressShaping if self.reward_shaping else None
+        rules = self.map_rules
+        env = partial(make_map_env, self.map, self.difficulty, rules.tic_limit, progress_rule=rules.progress_rule)
+        return env, ProgressShaping if self.reward_shaping else None
 
 
 def train(config: TrainConfig) -> Path:
@@ -145,11 +180,17 @@ def train(config: TrainConfig) -> Path:
     # wrapper inside make_vec_env still logs the raw reward, and the Eval
     # Suite scores the raw reward. A continued Training Run keeps its parent's
     # scale, which its value network learned on.
-    parent_scale = config.init_from.with_name(REWARD_SCALE_FILE) if config.init_from else None
-    if parent_scale and parent_scale.exists():
+    if parent_scale := _beside(config.init_from, REWARD_SCALE_FILE):
         env = VecNormalize.load(str(parent_scale), env)
     else:
         env = VecNormalize(env, norm_obs=False, norm_reward=True)
+    if config.rnd_coef:
+        # Outside VecNormalize, so the game's reward is rescaled the same with or
+        # without the bonus, and the bonus is scaled on its own (M5 brief). No
+        # bonus during the first rollout, while the pixel statistics settle.
+        env = RNDBonus(env, config.rnd_coef, RND(seed=config.seed), warmup_frames=config.n_envs * config.n_steps)
+        if parent_rnd := _beside(config.init_from, RND_FILE):
+            env.load(parent_rnd)
     algorithm = RecurrentPPO if config.recurrent else PPO
     hyperparameters = dict(
         n_steps=config.n_steps,
@@ -185,6 +226,8 @@ def train(config: TrainConfig) -> Path:
             callbacks = [IntermediateCheckpoints(run_dir, config, parent)] if config.checkpoint_every else []
             if config.map:
                 callbacks.append(ProgressCurve())
+            if config.rnd_coef:
+                callbacks.append(RNDUpdate())
             start = time.perf_counter()
             # A continued Training Run keeps counting steps from where its checkpoint stopped.
             model.learn(
@@ -210,17 +253,23 @@ def save_checkpoint(
     folder.mkdir(parents=True, exist_ok=True)
     model.save(checkpoint)
     model.get_vec_normalize_env().save(str(folder / REWARD_SCALE_FILE))  # for a Training Run continued from here
+    if bonus := unwrap_vec_wrapper(model.get_env(), RNDBonus):
+        bonus.save(folder / RND_FILE)
+    rules = config.map_rules if config.map else MapRules(None, None)
     record = {
         "run_id": uuid.uuid4().hex[:12],  # tells this checkpoint apart from a retrain with the same seed
         "contender": config.contender + (f"-at-{model.num_timesteps}" if halfway else ""),
         "scenario": config.scenario,
         "map": config.map,
         "difficulty": config.difficulty if config.map else None,
+        "tic_limit": rules.tic_limit,
+        "progress_rule": rules.progress_rule,  # the rule the record and curve keep
         "seed": config.seed,
         "steps": model.num_timesteps,
         # A continued Training Run's cost includes the Training Run it started from.
         "wall_clock_s": round(wall_clock_s + (parent["wall_clock_s"] if parent else 0), 1),
         "reward_shaping": config.reward_shaping,
+        "rnd": bonus.settings if bonus else None,
         "recurrent": config.recurrent,
         "actions": list(ACTIONS) if config.map else None,  # the Action set, in the order the policy learned it
         "init_from": parent["run_id"] if parent else None,
@@ -262,8 +311,10 @@ class ProgressCurve(BaseCallback):
     policy learns the route; Progress shows the learning before the first Clear.
     Each point averages only the Attempts that ended since the last one (a few,
     since a full Attempt is thousands of steps long), so it is noisier than the
-    reward curve, which averages the last 100 Attempts. Progress is Privileged
-    Information: the policy never sees this curve; it is declared in Results.
+    reward curve, which averages the last 100 Attempts. On a Map with keys it
+    also logs the share of Attempts that ended holding one. Progress and keys
+    held are Privileged Information: the policy never sees these curves; they
+    are declared in Results.
     """
 
     def _on_step(self) -> bool:
@@ -271,7 +322,15 @@ class ProgressCurve(BaseCallback):
             if record := info.get("record"):  # the Attempt that copy was playing just ended
                 self.logger.record_mean("rollout/progress", record["progress"])
                 self.logger.record_mean("rollout/clear_rate", float(record["cleared"]))
+                if record["keys_held"] is not None:  # keys were read: a keyed Map with keys on it
+                    self.logger.record_mean("rollout/key_rate", float(bool(record["keys_held"])))
         return True
+
+
+def _beside(checkpoint: Path | None, name: str) -> Path | None:
+    """A file saved next to `checkpoint`, if there is one."""
+    path = checkpoint.with_name(name) if checkpoint else None
+    return path if path and path.exists() else None
 
 
 def training_record(checkpoint: Path) -> dict:
@@ -290,6 +349,7 @@ def main() -> None:
     game.add_argument("--scenario", choices=sorted(SCENARIOS))
     game.add_argument("--map", type=str.upper, help="an original Map, such as E1M1")
     parser.add_argument("--difficulty", type=int)
+    parser.add_argument("--tic-limit", type=int, help="Maps: each Attempt's length; default, the Map's Eval Spec's")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--total-steps", type=int)
     parser.add_argument("--n-envs", type=int)
@@ -297,6 +357,7 @@ def main() -> None:
     parser.add_argument("--health-penalty", type=float, help="Scenarios: training cost per health point lost")
     parser.add_argument("--progress-reward", type=float, help="Maps: training reward for reaching Progress 1")
     parser.add_argument("--death-penalty", type=float, help="Maps: training cost of dying")
+    parser.add_argument("--rnd-coef", type=float, help="exploration bonus (RND) for new screens; 0 for none")
     parser.add_argument("--recurrent", action="store_true", help="an LSTM policy (RecurrentPPO)")
     parser.add_argument("--init-from", type=Path, help="continue training from this checkpoint")
     parser.add_argument("--checkpoint-every", type=int, help="steps between intermediate checkpoints")

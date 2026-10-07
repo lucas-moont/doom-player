@@ -13,6 +13,7 @@ Rings: spawn green, red key red, red door yellow.
   the detour is ground toward a door that will not open.
 """
 
+import csv
 from pathlib import Path
 
 import numpy as np
@@ -21,10 +22,14 @@ from PIL import ImageDraw
 import omg
 import omg.mapedit
 
-from doom_player.paths import WAD_PATH
+from doom_player.paths import REPO_ROOT, WAD_PATH
 from doom_player.progress import LOCKS, KeyedRoute, distance_field, render
 
 OUT = Path(__file__).parent / "img"
+CURVES = REPO_ROOT / "results" / "curves"
+# Checkpoint folder and W&B run of each E1M2 Training Run.
+RUNS = [("e1m2-d3-seed0-shaped", "9a3e5i8r"), ("e1m2-d3-seed0-shaped-rnd", "uqsc8q3g")]
+TAGS = ["rollout/ep_rew_mean", "rollout/progress", "rollout/clear_rate", "rollout/key_rate"]
 RED = frozenset({"red"})
 STEPS = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
 
@@ -83,5 +88,33 @@ def main() -> None:
     print(f"doors-open pays up to {1 - best / field.start_distance:.1%} without the red key")
 
 
+def export_curves() -> None:
+    from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+
+    for name, wandb_run in RUNS:
+        folder = REPO_ROOT / "checkpoints" / name / "tensorboard"
+        if not folder.exists():
+            print(f"{name}: no checkpoint folder here, curve left as committed")
+            continue
+        (events,) = folder.rglob("events.*")
+        acc = EventAccumulator(str(events), size_guidance={"scalars": 0})
+        acc.Reload()
+        rows: dict[int, dict] = {}
+        for tag in set(TAGS) & set(acc.Tags()["scalars"]):
+            for e in acc.Scalars(tag):
+                rows.setdefault(e.step, {})[tag] = e.value
+        with open(CURVES / f"{name}.csv", "w", newline="") as f:
+            f.write(
+                f"# W&B run {wandb_run}; progress (keyed), clear_rate and key_rate are averages of training"
+                " Attempts ended since the last point; key_rate is blank where the run did not log it\n"
+            )
+            w = csv.writer(f)
+            w.writerow(["step", "ep_rew_mean", "progress", "clear_rate", "key_rate"])
+            for step in sorted(rows):
+                w.writerow([step, *("" if (v := rows[step].get(t)) is None else f"{v:.6g}" for t in TAGS)])
+        print(f"{name}: {len(rows)} points")
+
+
 if __name__ == "__main__":
     main()
+    export_curves()

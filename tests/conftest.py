@@ -38,3 +38,13 @@ def predicts_an_action(model, env) -> bool:
         return env.action_space.contains(int(action))
     finally:
         env.close()
+
+
+def logged_scalars(checkpoint: Path):
+    """The TensorBoard scalars a Training Run logged beside `checkpoint`."""
+    from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+
+    (events,) = (checkpoint.parent / "tensorboard").rglob("events.*")
+    accumulator = EventAccumulator(str(events))
+    accumulator.Reload()
+    return accumulator

@@ -30,6 +30,9 @@ ACTIONS = {
 }
 
 TRAINING_SEEDS_FROM = 1000  # Eval Specs use small game seeds (e1m1-v1: 0 to 4)
+# A Map's Attempt rules when nothing names them: e1m1-v1's 3 minutes, every door open.
+DEFAULT_TIC_LIMIT = 6300
+DEFAULT_PROGRESS_RULE = "doors-open"
 
 
 class MapEnv(gym.Env):
@@ -39,9 +42,9 @@ class MapEnv(gym.Env):
         self,
         map: str = "E1M1",
         difficulty: int = 3,
-        tic_limit: int = 6300,
+        tic_limit: int = DEFAULT_TIC_LIMIT,
         contender: str = "training",
-        progress_rule: str = "doors-open",
+        progress_rule: str = DEFAULT_PROGRESS_RULE,
     ):
         self.map, self.difficulty, self.tic_limit = map, difficulty, tic_limit
         self.progress_rule = progress_rule  # the rule the record keeps; shaping may read another

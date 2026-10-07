@@ -47,6 +47,9 @@ STANDARD_E1M2 = EvalSpec(
     name="e1m2-v1", map="E1M2", difficulty=3, seeds=(0, 1, 2, 3, 4), tic_limit=12600, progress_rule="keyed"
 )
 SPECS = {spec.name: spec for spec in (STANDARD_E1M1, STANDARD_E1M2)}
+# The Eval Spec each Map is scored on now, whose rules its Training Runs play by.
+# A new version of a spec replaces its Map's entry here.
+MAP_SPECS = {spec.map: spec for spec in (STANDARD_E1M1, STANDARD_E1M2)}
 
 
 def attempts_path(results_dir: Path, contender: str, spec: EvalSpec) -> Path:
