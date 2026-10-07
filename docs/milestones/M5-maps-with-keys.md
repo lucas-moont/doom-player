@@ -146,3 +146,9 @@ In progress. The notes below are in the order they were measured.
   | Had the red key, stalled beside it until the time ran out | 1 | recipe seed 0: out of ammunition, facing a wall next to where the key lay |
 
   No Attempt reached the red door with the key, so "had the key, did not reach the door" in the brief's plan has one member and "opened the door" none. Videos of a failure for each policy are kept locally in `videos/` (gitignored), one frame per decision; there is no Clear to film.
+- **Privileged Information used in M5**, all of it outside what a Contender sees (ADR 0002). Every policy saw only the screen, in the policy view, with its HUD.
+  - **Training reward**: the player's position, through the doors-open distance field, pays M4's Progress shaping in every Training Run above. A run with `--shaping-rule keyed` pays keyed Progress instead, which also reads which keys the player holds.
+  - **Scoring**: the position and the keys held measure keyed Progress on `e1m2-v1`, and the keys held fill each record's `keys_held`.
+  - **Training curves**: `rollout/progress` (keyed) and `rollout/key_rate` read the same two.
+  - **Debugging**: positions traced the paths in the films above. They were read while filming only, after each eval, and drew no committed figure.
+  - **Not privileged**: the RND bonus reads only the newest frame of the policy view.
