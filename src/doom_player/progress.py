@@ -37,6 +37,11 @@ PLAYER_HEIGHT = 56  # an opening lower than this is closed
 MANUAL_DOOR_ACTIONS = {1, 26, 27, 28, 31, 32, 33, 34, 117, 118}
 # Doors that open only for a player holding the key of their colour (DR and D1).
 LOCKS = {"blue": {26, 32}, "yellow": {27, 34}, "red": {28, 33}}
+# Thing types of the keys of each colour: keycard and skull key.
+KEY_THINGS = {"blue": {5, 40}, "yellow": {6, 39}, "red": {13, 38}}
+# Thing flags: which Difficulties a thing appears at, and multiplayer only.
+SKILL_FLAGS = {1: 0x1, 2: 0x1, 3: 0x2, 4: 0x4, 5: 0x4}
+MULTIPLAYER_ONLY = 0x10
 # Doors opened from elsewhere, by a switch (103) or a shot (46), found by sector tag.
 # A whitelist: other remote openers (63 on E1M1, for one) would change E1M1's field.
 TAGGED_DOOR_ACTIONS = {46, 103}
@@ -56,9 +61,17 @@ class DistanceField:
     def cell_of(self, x: float, y: float) -> tuple[int, int]:
         return int((y - self.origin[1]) // CELL), int((x - self.origin[0]) // CELL)
 
-    def distance_at(self, x: float, y: float) -> float:
-        """Walking distance to the exit; the nearest reachable cell if needed."""
+    def distance_at(self, x: float, y: float, strict: bool = False) -> float:
+        """Walking distance to the exit; the nearest reachable cell if needed.
+
+        A position read off the game can land in a cell a wall was drawn
+        through, so nearby cells stand in for it. Without `strict` they also
+        stand in for a free cell the exit cannot reach, which on a field with
+        a locked door would borrow the distance from the door's other side.
+        """
         row, col = self.cell_of(x, y)
+        if strict and not self.blocked[row, col]:
+            return float(self.distance[row, col])
         for radius in range(4):
             window = self.distance[
                 max(0, row - radius) : row + radius + 1,
@@ -72,22 +85,103 @@ class DistanceField:
     def start_distance(self) -> float:
         return self.distance_at(*self.start)
 
+    # The ruler interface ProgressMeter reads; this rule ignores keys.
+    def remaining(self, x: float, y: float, keys: frozenset[str] = frozenset()) -> float:
+        return self.distance_at(x, y)
+
+    @property
+    def start_remaining(self) -> float:
+        return self.start_distance
+
+
+@dataclass(frozen=True)
+class KeyedRoute:
+    """Walking distance still to cover, through the keys the Map needs.
+
+    With keys K held, the rest of the route is the shorter of: straight to the
+    exit through the doors K opens; or to a key k not yet held, then the rest
+    of the route from there with K + k. A key that does not shorten the route
+    never wins, so no list of required keys is written by hand, and on a Map
+    without keys this is the distance field itself. Each leg weighs its own
+    walking length, so Progress stays "the share of the route covered".
+    Positions are looked up strictly, so a cell behind a locked door does not
+    borrow the distance from the door's open side.
+    """
+
+    map: str
+    difficulty: int = 3
+    wad_path: Path = WAD_PATH
+
+    @cached_property
+    def field(self) -> DistanceField:
+        """Every door open: the M4 rule, and the picture's background."""
+        return distance_field(self.map, self.wad_path)
+
+    @cached_property
+    def keys(self) -> dict[str, list[tuple[float, float]]]:
+        """Where each colour's keys lie at this Difficulty, from the WAD."""
+        editor = omg.mapedit.MapEditor(omg.WAD(str(self.wad_path)).maps[self.map])
+        present = lambda t: t.flags & SKILL_FLAGS[self.difficulty] and not t.flags & MULTIPLAYER_ONLY  # noqa: E731
+        return {
+            colour: spots
+            for colour, types in KEY_THINGS.items()
+            if (spots := [(t.x, t.y) for t in editor.things if t.type in types and present(t)])
+        }
+
+    def _field(self, held: frozenset[str], goal=None) -> DistanceField:
+        return distance_field(self.map, self.wad_path, locked=frozenset(LOCKS) - held, goal=goal)
+
+    def remaining(self, x: float, y: float, keys: frozenset[str] = frozenset()) -> float:
+        if not self.keys:
+            return self.field.distance_at(x, y)
+        best = self._field(keys).distance_at(x, y, strict=True)
+        for colour, spots in self.keys.items():
+            if colour in keys:
+                continue
+            for spot in spots:
+                leg = self._field(keys, goal=spot).distance_at(x, y, strict=True)
+                if leg < best:
+                    best = min(best, leg + self._from_key(spot, keys | {colour}))
+        return best
+
+    def _from_key(self, spot: tuple[float, float], keys: frozenset[str]) -> float:
+        # The rest of the route once a key is picked up; at most 2^3 key sets.
+        return _route_from(self, spot, keys)
+
+    @cached_property  # read on every step while training; it never changes
+    def start_remaining(self) -> float:
+        return self.remaining(*self.field.start)
+
+
+@cache
+def _route_from(route: KeyedRoute, spot: tuple[float, float], keys: frozenset[str]) -> float:
+    return route.remaining(*spot, keys)
+
 
 @dataclass
 class ProgressMeter:
-    """Follows one Attempt and keeps its closest approach to the exit."""
+    """Follows one Attempt and keeps its closest approach to the exit.
 
-    field: DistanceField
+    The ruler is a DistanceField (every door open, the M4 rule) or a
+    KeyedRoute; either answers `remaining(x, y, keys)`.
+    """
+
+    ruler: DistanceField | KeyedRoute
     closest: float = math.inf
     path: list[tuple[float, float]] = field(default_factory=list)
 
-    def visit(self, x: float, y: float) -> None:
+    @property
+    def field(self) -> DistanceField:
+        """The distance field a picture of the Attempt draws."""
+        return self.ruler if isinstance(self.ruler, DistanceField) else self.ruler.field
+
+    def visit(self, x: float, y: float, keys: frozenset[str] = frozenset()) -> None:
         self.path.append((x, y))
-        self.closest = min(self.closest, self.field.distance_at(x, y))
+        self.closest = min(self.closest, self.ruler.remaining(x, y, keys))
 
     @property
     def progress(self) -> float:
-        start = self.field.start_distance
+        start = self.ruler.start_remaining
         return min(1.0, max(0.0, 1.0 - self.closest / start))
 
 
