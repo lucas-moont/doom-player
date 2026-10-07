@@ -69,3 +69,13 @@ def test_e1m2_spawn_reaches_the_exit_through_lifts_and_remote_doors():
     field = distance_field("E1M2")
     assert field.start == E1M2_START
     assert field.start_distance == pytest.approx(4959, abs=1)
+
+
+def test_e1m2_red_door_locked_cuts_the_exit_off():
+    # The red door (linedefs 527/528, action 28) is the only way to the exit.
+    assert distance_field("E1M2", locked=frozenset({"red"})).start_distance == math.inf
+
+
+def test_locking_a_colour_the_map_does_not_use_changes_nothing():
+    open_field, locked = distance_field("E1M2"), distance_field("E1M2", locked=frozenset({"blue", "yellow"}))
+    assert np.array_equal(open_field.distance, locked.distance)

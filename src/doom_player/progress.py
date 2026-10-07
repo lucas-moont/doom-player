@@ -34,6 +34,8 @@ PLAYER_HEIGHT = 56  # an opening lower than this is closed
 # Doors a player opens by pressing USE on them (DR/D1, normal, locked and fast).
 # A closed sector without one of these opens only from elsewhere, if at all.
 MANUAL_DOOR_ACTIONS = {1, 26, 27, 28, 31, 32, 33, 34, 117, 118}
+# Doors that open only for a player holding the key of their colour (DR and D1).
+LOCKS = {"blue": {26, 32}, "yellow": {27, 34}, "red": {28, 33}}
 # Doors opened from elsewhere, by a switch (103) or a shot (46), found by sector tag.
 # A whitelist: other remote openers (63 on E1M1, for one) would change E1M1's field.
 TAGGED_DOOR_ACTIONS = {46, 103}
@@ -88,17 +90,19 @@ class ProgressMeter:
         return min(1.0, max(0.0, 1.0 - self.closest / start))
 
 
-def _walls(editor: omg.mapedit.MapEditor) -> list[tuple[float, float, float, float]]:
+def _walls(editor: omg.mapedit.MapEditor, locked: frozenset[str] = frozenset()) -> list[tuple[float, float, float, float]]:
     """Lines a player cannot cross.
 
     One-sided and impassable lines; ledges higher than a step, unless one side
     is a lift; and closed openings, unless the closed sector is a door the
-    player can open, with USE or from elsewhere.
+    player can open, with USE or from elsewhere. Doors of a `locked` colour
+    stay shut, unless another, unlocked line opens them too.
     """
+    shut = set().union(*(LOCKS[colour] for colour in locked))
     sector_of = lambda side: editor.sidedefs[side].sector  # noqa: E731
     tagged = lambda actions: {line.tag for line in editor.linedefs if line.action in actions and line.tag}  # noqa: E731
     door_tags, lift_tags = tagged(TAGGED_DOOR_ACTIONS), tagged(LIFT_ACTIONS)
-    openable = {sector_of(line.back) for line in editor.linedefs if line.action in MANUAL_DOOR_ACTIONS and line.back != NO_SIDE}
+    openable = {sector_of(line.back) for line in editor.linedefs if line.action in MANUAL_DOOR_ACTIONS - shut and line.back != NO_SIDE}
     openable |= {i for i, sector in enumerate(editor.sectors) if sector.tag in door_tags}
     lifts = {i for i, sector in enumerate(editor.sectors) if sector.tag in lift_tags}
     walls = []
@@ -125,7 +129,8 @@ def _rasterize(blocked: np.ndarray, origin: tuple[int, int], segment) -> None:
 
 
 @cache
-def distance_field(map_name: str = "E1M1", wad_path: Path = WAD_PATH) -> DistanceField:
+def distance_field(map_name: str = "E1M1", wad_path: Path = WAD_PATH, *, locked: frozenset[str] = frozenset()) -> DistanceField:
+    """Walking distance to the exit; doors of the `locked` key colours stay shut."""
     editor = omg.mapedit.MapEditor(omg.WAD(str(wad_path)).maps[map_name])
     xs = [v.x for v in editor.vertexes]
     ys = [v.y for v in editor.vertexes]
@@ -133,7 +138,7 @@ def distance_field(map_name: str = "E1M1", wad_path: Path = WAD_PATH) -> Distanc
     shape = ((max(ys) - origin[1]) // CELL + 2, (max(xs) - origin[0]) // CELL + 2)
 
     blocked = np.zeros(shape, dtype=bool)
-    for wall in _walls(editor):
+    for wall in _walls(editor, locked):
         _rasterize(blocked, origin, wall)
 
     # Sources: free cells within reach of an exit line's midpoint, on its front
