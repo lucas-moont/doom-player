@@ -74,3 +74,26 @@ def test_e1m2_is_scored_on_the_route_through_its_key():
     spec = SPECS["e1m2-v1"]
     assert (spec.map, spec.difficulty, spec.progress_rule) == ("E1M2", 3, "keyed")
     assert SPECS["e1m1-v1"].progress_rule == "doors-open"
+
+
+class TrainedElsewhere:
+    """A learned Contender trained on E1M1 that plays like random, through the suite's loop."""
+
+    def __init__(self):
+        self._random = RandomContender()
+        self.name, self.tics_per_action = "trained-elsewhere", self._random.tics_per_action
+        self.training = {"map": "E1M1", "run_id": "fake", "steps": 64, "wall_clock_s": 1.0}
+
+    def reset(self, seed, buttons):
+        self._random.reset(seed, buttons)
+
+    def act(self, observation):
+        return self._random.act(observation)
+
+
+def test_a_contender_plays_another_map_only_on_purpose(tmp_path):
+    other_map = replace(SHORT, name="test-short-e1m2", map="E1M2", seeds=(0,))
+    with pytest.raises(SystemExit, match="--transfer"):
+        run_eval(TrainedElsewhere(), other_map, tmp_path)
+    row = run_eval(TrainedElsewhere(), other_map, tmp_path, transfer=True)
+    assert (row["map"], row["trained_on"]) == ("E1M2", "E1M1")

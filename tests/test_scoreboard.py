@@ -69,3 +69,11 @@ def test_scoreboard_renders_a_scenario_table_next_to_the_map_table():
         "| ppo | `basic` | 71.4 | 5 (0-4) | human-equivalent | 200,000 steps, 41 min | 0.42 s | `basic-v1` |",
         "| random | `basic` | -112.0 | 5 (0-4) | human-equivalent | none | 0.61 s | `basic-v1` |",
     ]
+
+
+def test_a_row_measured_on_another_map_says_where_its_contender_trained():
+    transfer = {**PPO_MAP_ROW, "spec": "e1m2-v1", "map": "E1M2", "trained_on": "E1M1"}
+    home = {**PPO_MAP_ROW, "trained_on": "E1M1"}
+    text = render_readme(README, [home, transfer])
+    assert "| ppo-e1m1-d3-seed0 (trained on `E1M1`) | `E1M2` |" in text
+    assert "| ppo-e1m1-d3-seed0 | `E1M1` |" in text

@@ -83,17 +83,20 @@ def run_eval(
     results_dir: Path = RESULTS_DIR,
     stop_after: int | None = None,
     video_dir: Path | None = None,
+    transfer: bool = False,
 ) -> dict | None:
     """Play the spec's missing Attempts; return the Scoreboard row once all are done.
 
     `stop_after` ends the run early after that many new Attempts, the way a
     subscription limit would; calling again resumes. With `video_dir`, every
-    Attempt played is also filmed, one frame per tic.
+    Attempt played is also filmed, one frame per tic. `transfer` lets a learned
+    Contender play a Map it did not train on; its row says where it trained.
     """
     path = attempts_path(results_dir, contender.name, spec)
     records = read_records(path)
     check_rules(records, spec, contender.training)
-    check_trained_on(contender, spec.map)  # before any video file is opened
+    if not transfer:
+        check_trained_on(contender, spec.map)  # before any video file is opened
     done = {r["seed"] for r in records}
     played = 0
     for seed in spec.seeds:
@@ -153,12 +156,18 @@ def check_checkpoint(record: dict, spec_name: str, training: dict | None) -> Non
         )
 
 
+def trained_on(training: dict | None) -> str | None:
+    """The Map or Scenario a learned Contender trained on; None for an untrained one."""
+    return (training.get("map") or training.get("scenario")) if training else None
+
+
 def check_trained_on(contender, game: str) -> None:
     """Refuse to measure a learned Contender on a Map or Scenario other than the one it trained on."""
-    if contender.training:
-        trained_on = contender.training.get("map") or contender.training.get("scenario")
-        if trained_on != game:
-            raise SystemExit(f"{contender.name} was trained on {trained_on}, not {game}")
+    if contender.training and trained_on(contender.training) != game:
+        raise SystemExit(
+            f"{contender.name} was trained on {trained_on(contender.training)}, not {game}; "
+            "pass --transfer to measure it there on purpose"
+        )
 
 
 def training_columns(training: dict | None) -> dict:
@@ -192,6 +201,7 @@ def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict], training
         "tokens_per_attempt": round(sum(tokens) / n) if tokens else 0,
         "wall_clock_s_per_attempt": round(sum(r["wall_clock_s"] for r in records) / n, 1),
         **training_columns(training),
+        "trained_on": trained_on(training),
         "measured_on": date.today().isoformat(),
         "commit": _git_commit(),
     }
@@ -239,6 +249,9 @@ def main() -> None:
     parser.add_argument("--spec", default=STANDARD_E1M1.name, choices=sorted({*SPECS, *SCENARIO_SPECS}))
     parser.add_argument("--checkpoint", type=Path, help="the model.zip a `ppo` Contender plays from")
     parser.add_argument("--video", action="store_true", help="save each Attempt to videos/")
+    parser.add_argument(
+        "--transfer", action="store_true", help="measure a learned Contender on a Map it did not train on"
+    )
     args = parser.parse_args()
     if args.checkpoint and args.contender != "ppo":
         parser.error(f"{args.contender!r} plays without a checkpoint")
@@ -255,7 +268,7 @@ def main() -> None:
         contender = PPOMapContender(args.checkpoint)
     else:
         contender = CONTENDERS[args.contender]()
-    row = run_eval(contender, spec, video_dir=REPO_ROOT / "videos" if args.video else None)
+    row = run_eval(contender, spec, video_dir=REPO_ROOT / "videos" if args.video else None, transfer=args.transfer)
     write_row(row)
     log_to_wandb(row, read_records(attempts_path(RESULTS_DIR, contender.name, spec)), spec)
     print(json.dumps(row, indent=2))
