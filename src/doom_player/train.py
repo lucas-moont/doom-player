@@ -30,6 +30,7 @@ from doom_player.maps import ACTIONS, DEFAULT_PROGRESS_RULE, DEFAULT_TIC_LIMIT, 
 from doom_player.paths import REPO_ROOT
 from doom_player.rnd import RND, RNDBonus, RNDUpdate
 from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
+from doom_player.session import PROGRESS_RULES
 
 CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
 WANDB_PROJECT = "doom-player"
@@ -38,7 +39,6 @@ REWARD_SCALE_FILE = "vecnormalize.pkl"  # VecNormalize's running reward statisti
 RND_FILE = "rnd.pt"  # the RND bonus's networks and statistics, saved beside model.zip when it was paid
 SCENARIO_SHAPING = ("kill_reward", "health_penalty")
 MAP_SHAPING = ("progress_reward", "death_penalty")
-SHAPING_PROGRESS_RULE = "doors-open"  # M4's recipe pays every-door-open Progress, on every Map (ADR 0013)
 
 
 class MapRules(NamedTuple):
@@ -74,6 +74,9 @@ class TrainConfig:
     # Maps (`maps.ProgressShaping`): the exit alone pays too rarely to learn from.
     progress_reward: float = 0.0
     death_penalty: float = 0.0
+    # The Progress rule shaping pays (ADR 0013): M4's recipe counts every door as
+    # open; `keyed` pays the route through the keys, where the Attempts measure it.
+    shaping_rule: str = "doors-open"
     # Exploration bonus (`rnd.RNDBonus`): how much a new screen pays next to the
     # rescaled game reward. Zero leaves training as in M4.
     rnd_coef: float = 0.0
@@ -107,6 +110,15 @@ class TrainConfig:
             raise ValueError("--rnd-coef and a label with an 'rnd' part, such as shaped-rnd, go together")
         if self.tic_limit is not None and not self.label:
             raise ValueError("a Training Run with --tic-limit needs a --label naming it: its Attempts differ")
+        if self.shaping_rule not in PROGRESS_RULES:
+            raise ValueError(f"unknown --shaping-rule {self.shaping_rule!r}; known: {PROGRESS_RULES}")
+        if self.shaping_rule != "doors-open":
+            if not (self.map and self.reward_shaping):
+                raise ValueError("--shaping-rule applies to Maps trained with --progress-reward or --death-penalty")
+            if self.shaping_rule != self.map_rules.progress_rule:
+                raise ValueError(f"{self.map}'s Attempts measure {self.map_rules.progress_rule} Progress, not {self.shaping_rule}")
+        if (self.shaping_rule == "keyed") != ("keyed" in self.label.split("-")):
+            raise ValueError("--shaping-rule keyed and a label with a 'keyed' part, such as keyed-shaped, go together")
         if self.n_envs > SEED_SPACING:
             raise ValueError(f"at most {SEED_SPACING} copies, or neighbouring training seeds would share games")
 
@@ -132,7 +144,7 @@ class TrainConfig:
         terms = {n: getattr(self, n) for n in (SCENARIO_SHAPING if self.scenario else MAP_SHAPING)}
         if not any(terms.values()):
             return None
-        return terms if self.scenario else {**terms, "progress_rule": SHAPING_PROGRESS_RULE}
+        return terms if self.scenario else {**terms, "progress_rule": self.shaping_rule}
 
     @property
     def map_rules(self) -> MapRules:
@@ -357,6 +369,7 @@ def main() -> None:
     parser.add_argument("--health-penalty", type=float, help="Scenarios: training cost per health point lost")
     parser.add_argument("--progress-reward", type=float, help="Maps: training reward for reaching Progress 1")
     parser.add_argument("--death-penalty", type=float, help="Maps: training cost of dying")
+    parser.add_argument("--shaping-rule", choices=PROGRESS_RULES, help="Maps: the Progress rule shaping pays")
     parser.add_argument("--rnd-coef", type=float, help="exploration bonus (RND) for new screens; 0 for none")
     parser.add_argument("--recurrent", action="store_true", help="an LSTM policy (RecurrentPPO)")
     parser.add_argument("--init-from", type=Path, help="continue training from this checkpoint")

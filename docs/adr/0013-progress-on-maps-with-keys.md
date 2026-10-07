@@ -13,3 +13,4 @@ ADR 0008's Progress treated every door as open and every lift as a wall. On `E1M
 - `e1m1-v1` keeps `doors-open`, and every `E1M1` number keeps its meaning. A record without a rule, written before M5, counts as `doors-open`; the Eval Suite refuses to mix rules under one Eval Spec name.
 - ADR 0008's simplifications still hold for both rules, except two: lifts are no longer walls, and under `keyed` locked doors are locked. Crushers, teleporters and drop-down areas are still ignored.
 - A lift or a remote door with an action outside the list is still a wall. A new Map may need the list extended, which must not change `E1M1`'s pinned field.
+- `doom-train --shaping-rule keyed` pays the `keyed` rule instead, on a Map whose Eval Spec scores with it; its label must say `keyed`. Added in M5, after every Attempt of the `doors-open` recipe on `E1M2` walked to the locked red door first.
