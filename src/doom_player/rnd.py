@@ -232,7 +232,7 @@ class RNDBonus(VecEnvWrapper):
         torch.save(state, path)
 
     def load(self, path: Path) -> None:
-        state = torch.load(path, map_location=self.rnd.device)  # saved on the GPU, maybe loaded without one
+        state = torch.load(path, map_location="cpu")  # the networks move themselves; the statistics stay numpy
         self.rnd.load_state_dict(state["rnd"])
         _load_rms(self.returns, state["returns"])
         if len(state["discounted"]) == self.num_envs:  # else a different number of copies: start the sums afresh
