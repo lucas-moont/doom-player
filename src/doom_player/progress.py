@@ -29,6 +29,7 @@ CELL = 8  # map units per grid cell; a player is 32 units wide
 MAX_STEP = 24  # the highest ledge a player can walk up
 EXIT_ACTIONS = {11, 52}  # exit switch, walk-over exit (51 and 124 are secret exits)
 EXIT_REACH = 32  # cells this close to the exit line count as "at the exit"
+PICKUP_REACH = 36  # a player (radius 16) touches an item (radius 20) this close, per axis
 NO_SIDE = 0xFFFF
 PLAYER_HEIGHT = 56  # an opening lower than this is closed
 # Doors a player opens by pressing USE on them (DR/D1, normal, locked and fast).
@@ -128,24 +129,11 @@ def _rasterize(blocked: np.ndarray, origin: tuple[int, int], segment) -> None:
         blocked[int((y - origin[1]) // CELL), int((x - origin[0]) // CELL)] = True
 
 
-@cache
-def distance_field(map_name: str = "E1M1", wad_path: Path = WAD_PATH, *, locked: frozenset[str] = frozenset()) -> DistanceField:
-    """Walking distance to the exit; doors of the `locked` key colours stay shut."""
-    editor = omg.mapedit.MapEditor(omg.WAD(str(wad_path)).maps[map_name])
-    xs = [v.x for v in editor.vertexes]
-    ys = [v.y for v in editor.vertexes]
-    origin = (min(xs) - CELL, min(ys) - CELL)
-    shape = ((max(ys) - origin[1]) // CELL + 2, (max(xs) - origin[0]) // CELL + 2)
-
-    blocked = np.zeros(shape, dtype=bool)
-    for wall in _walls(editor, locked):
-        _rasterize(blocked, origin, wall)
-
-    # Sources: free cells within reach of an exit line's midpoint, on its front
-    # side (the right of a walk from vertex A to B), where the player stands.
+def _exit_sources(editor, origin, blocked) -> list[tuple[float, int, int]]:
+    # Free cells within reach of an exit line's midpoint, on its front side
+    # (the right of a walk from vertex A to B), where the player stands.
     # The back of a one-sided exit switch is outside the Map.
-    distance = np.full(shape, math.inf)
-    heap = []
+    sources = []
     for line in editor.linedefs:
         if line.action not in EXIT_ACTIONS:
             continue
@@ -159,10 +147,50 @@ def distance_field(map_name: str = "E1M1", wad_path: Path = WAD_PATH, *, locked:
                 cy = origin[1] + (row + 0.5) * CELL
                 in_front = (b.x - a.x) * (cy - a.y) - (b.y - a.y) * (cx - a.x) < 0
                 if in_front and not blocked[row, col] and math.hypot(cx - mx, cy - my) <= EXIT_REACH:
-                    distance[row, col] = 0.0
-                    heap.append((0.0, row, col))
+                    sources.append((0.0, row, col))
+    return sources
+
+
+def _pickup_sources(goal, origin, blocked) -> list[tuple[float, int, int]]:
+    # Free cells whose centre is close enough to touch an item at `goal`.
+    gx, gy = goal
+    r = PICKUP_REACH // CELL + 1
+    row0, col0 = int((gy - origin[1]) // CELL), int((gx - origin[0]) // CELL)
+    sources = []
+    for row in range(row0 - r, row0 + r + 1):
+        for col in range(col0 - r, col0 + r + 1):
+            cx = origin[0] + (col + 0.5) * CELL
+            cy = origin[1] + (row + 0.5) * CELL
+            if not blocked[row, col] and max(abs(cx - gx), abs(cy - gy)) < PICKUP_REACH:
+                sources.append((0.0, row, col))
+    return sources
+
+
+@cache
+def distance_field(
+    map_name: str = "E1M1",
+    wad_path: Path = WAD_PATH,
+    *,
+    locked: frozenset[str] = frozenset(),
+    goal: tuple[float, float] | None = None,
+) -> DistanceField:
+    """Walking distance to the exit, or to an item at `goal`; doors of the `locked` key colours stay shut."""
+    editor = omg.mapedit.MapEditor(omg.WAD(str(wad_path)).maps[map_name])
+    xs = [v.x for v in editor.vertexes]
+    ys = [v.y for v in editor.vertexes]
+    origin = (min(xs) - CELL, min(ys) - CELL)
+    shape = ((max(ys) - origin[1]) // CELL + 2, (max(xs) - origin[0]) // CELL + 2)
+
+    blocked = np.zeros(shape, dtype=bool)
+    for wall in _walls(editor, locked):
+        _rasterize(blocked, origin, wall)
+
+    distance = np.full(shape, math.inf)
+    heap = _exit_sources(editor, origin, blocked) if goal is None else _pickup_sources(goal, origin, blocked)
     if not heap:
-        raise ValueError(f"{map_name} has no exit line")
+        raise ValueError(f"{map_name} has no reachable {'exit line' if goal is None else f'cell at {goal}'}")
+    for _, row, col in heap:
+        distance[row, col] = 0.0
 
     # Dijkstra over 8 neighbours; a diagonal step may not cut a wall's corner.
     heapq.heapify(heap)

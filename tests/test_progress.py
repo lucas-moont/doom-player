@@ -19,6 +19,7 @@ E1M1_START_DISTANCE = 4760.625683894423
 E1M1_DISTANCE_SHA256 = "4c85a35f868185b82fe8649811c424aff1497dbe9bf127e0337ad55333719fc8"
 
 E1M2_START = (-32, -240)
+E1M2_RED_KEY = (1136, 352)  # thing type 13
 
 
 @pytest.fixture(scope="module")
@@ -79,3 +80,10 @@ def test_e1m2_red_door_locked_cuts_the_exit_off():
 def test_locking_a_colour_the_map_does_not_use_changes_nothing():
     open_field, locked = distance_field("E1M2"), distance_field("E1M2", locked=frozenset({"blue", "yellow"}))
     assert np.array_equal(open_field.distance, locked.distance)
+
+
+def test_distance_to_a_point_reaches_zero_where_the_item_is_touched():
+    to_key = distance_field("E1M2", locked=frozenset({"red"}), goal=E1M2_RED_KEY)
+    assert to_key.distance_at(*E1M2_RED_KEY) == 0.0
+    assert to_key.distance_at(E1M2_RED_KEY[0] + 30, E1M2_RED_KEY[1]) == 0.0  # touching, per axis
+    assert math.dist(E1M2_START, E1M2_RED_KEY) < to_key.start_distance < math.inf
