@@ -44,8 +44,8 @@ Written 2026-10-04, after M4. M4 showed that Progress shaping makes `E1M1` easy:
 - [x] `E1M2`'s keys, locked doors and route are recorded, with where Progress misleads
 - [x] An Eval Spec for `E1M2` exists, with random and the `E1M1` policies measured on it
 - [x] M4's recipe and the exploration bonus are both trained on `E1M2` with the same settings otherwise, and both rows are on the Map Scoreboard
-- [ ] The better setting is repeated with at least 3 training seeds
-- [ ] Videos of a Clear (if any) and a failure exist, and every failed Attempt has a failure category
+- [x] The better setting is repeated with at least 3 training seeds
+- [x] Videos of a Clear (if any) and a failure exist, and every failed Attempt has a failure category
 - [ ] Every privileged reward term is stated in Results
 - [ ] `docs/learn/M5-maps-with-keys.md` exists
 - [ ] Post 4 material is drafted in `docs/posts/04-maps-with-keys.md`
@@ -136,3 +136,13 @@ In progress. The notes below are in the order they were measured.
   | 2 | 0/5 | 2.0% (0.4% to 4.8%) | 0 of 5 | 134 min |
 
   Seed 0's 9.2% rests on one Attempt that found the key; without it, the three policies score between 0.3% and 4.8% per Attempt, around random's 2.3%. During training, seed 1's Attempts picked up the key in 2 of 2,428 rollouts and seed 2's in none; neither showed a Clear. All fifteen Attempts walk to the red door first, within 35 to 114 decisions. M4's recipe does not Clear `E1M2`: across three training seeds it learns the trap its reward sets, and no more.
+- **Failure categories** of the twenty failed Attempts of the four M5 policies (three training seeds of M4's recipe, and the RND ablation), each given by watching its film, with the keys held and how the Attempt ended checked against the scored record (`results/failures/e1m2-v1.csv`). Every one of them walked to the red door first.
+
+  | Failure category | Count | Which |
+  |---|---|---|
+  | Killed while wandering without the key | 9 | recipe seed 0 (2), seed 1 (3), seed 2 (4): after the red door they roam the central rooms and corridors, firing, until zombies and shotgun guys kill them |
+  | Killed in the armour's alcove | 6 | RND, all five; recipe seed 0 (1): they pick up the green armour on the central room's north side and stay in its alcove facing the walls while they are shot |
+  | Facing a wall without the key until the time ran out | 4 | recipe seed 0 (1), seed 1 (2), seed 2 (1): pressed against one wall for the rest of the 6 minutes, in the alcove, a dark corner west of the spawn, or a corridor wall |
+  | Had the red key, stalled beside it until the time ran out | 1 | recipe seed 0: out of ammunition, facing a wall next to where the key lay |
+
+  No Attempt reached the red door with the key, so "had the key, did not reach the door" in the brief's plan has one member and "opened the door" none. Videos of a failure for each policy are kept locally in `videos/` (gitignored), one frame per decision; there is no Clear to film.

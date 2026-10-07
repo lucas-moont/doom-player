@@ -1,0 +1,22 @@
+# Failure categories of the M5 policies' failed e1m2-v1 Attempts, given by watching each one filmed afterwards (one frame per decision); every Attempt walked to the red door first
+contender,seed,category,died,keys_held,progress
+ppo-e1m2-d3-seed0-shaped,0,facing a wall without the key until the time ran out,False,,0.0995
+ppo-e1m2-d3-seed0-shaped,1,killed while wandering without the key,True,,0.1031
+ppo-e1m2-d3-seed0-shaped,2,"had the red key, stalled beside it until the time ran out",False,red,0.2436
+ppo-e1m2-d3-seed0-shaped,3,killed in the armour's alcove,True,,0.0028
+ppo-e1m2-d3-seed0-shaped,4,killed while wandering without the key,True,,0.0103
+ppo-e1m2-d3-seed1-shaped,0,facing a wall without the key until the time ran out,False,,0.0046
+ppo-e1m2-d3-seed1-shaped,1,killed while wandering without the key,True,,0.0046
+ppo-e1m2-d3-seed1-shaped,2,killed while wandering without the key,True,,0.0212
+ppo-e1m2-d3-seed1-shaped,3,killed while wandering without the key,True,,0.0411
+ppo-e1m2-d3-seed1-shaped,4,facing a wall without the key until the time ran out,False,,0.0046
+ppo-e1m2-d3-seed2-shaped,0,facing a wall without the key until the time ran out,False,,0.0075
+ppo-e1m2-d3-seed2-shaped,1,killed while wandering without the key,True,,0.0043
+ppo-e1m2-d3-seed2-shaped,2,killed while wandering without the key,True,,0.024
+ppo-e1m2-d3-seed2-shaped,3,killed while wandering without the key,True,,0.0476
+ppo-e1m2-d3-seed2-shaped,4,killed while wandering without the key,True,,0.0154
+ppo-e1m2-d3-seed0-shaped-rnd,0,killed in the armour's alcove,True,,0.0013
+ppo-e1m2-d3-seed0-shaped-rnd,1,killed in the armour's alcove,True,,0.0012
+ppo-e1m2-d3-seed0-shaped-rnd,2,killed in the armour's alcove,True,,0.0028
+ppo-e1m2-d3-seed0-shaped-rnd,3,killed in the armour's alcove,True,,0.0026
+ppo-e1m2-d3-seed0-shaped-rnd,4,killed in the armour's alcove,True,,0.0006
