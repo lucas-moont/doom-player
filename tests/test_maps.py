@@ -175,3 +175,23 @@ def test_progress_shaping_charges_death():
     shaped, raw, record = play_shaped(zigzag, difficulty=5, tic_limit=6300)
     assert record["died"]
     assert shaped - raw == pytest.approx(100.0 * record["progress"] - 50.0, abs=0.01)
+
+
+def test_shaping_pays_its_own_rule_while_the_record_keeps_the_scoring_rule():
+    env = ProgressShaping(make_map_env("E1M2", 3, 240, progress_rule="keyed"), progress_reward=100.0, death_penalty=50.0)
+    try:
+        env.reset(options={"game_seed": 0})
+        shaped = raw = 0.0
+        terminated = truncated = False
+        while not (terminated or truncated):
+            _, reward, terminated, truncated, info = env.step(ACTION["forward"])
+            shaped += reward
+            raw += info["raw_reward"]
+        session = env.unwrapped.session
+        paid_for = session.progress_under("doors-open")
+    finally:
+        env.close()
+    assert info["record"]["progress_rule"] == "keyed"
+    assert info["record"]["progress"] == pytest.approx(session.progress_under("keyed"), abs=1e-4)
+    assert paid_for > 0.0
+    assert shaped - raw == pytest.approx(100.0 * paid_for)

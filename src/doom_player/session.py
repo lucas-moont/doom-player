@@ -99,13 +99,12 @@ class AttemptSession:
             raise SystemExit(f"Original Maps need the purchased WAD at {WAD_PATH}")
         if self.progress_rule not in PROGRESS_RULES:
             raise ValueError(f"unknown Progress rule {self.progress_rule!r}; known: {PROGRESS_RULES}")
+        # The doors-open rule is always measured too: M4's training reward reads it.
+        self.meters = {"doors-open": ProgressMeter(distance_field(self.map))}
         if self.progress_rule == "keyed":
-            route = KeyedRoute(self.map, self.difficulty)
-            self.progress_meter = ProgressMeter(route)
-            self._reads_keys = bool(route.keys)
-        else:
-            self.progress_meter = ProgressMeter(distance_field(self.map))
-            self._reads_keys = False
+            self.meters["keyed"] = ProgressMeter(KeyedRoute(self.map, self.difficulty))
+        self.progress_meter = self.meters[self.progress_rule]  # the rule the record keeps
+        self._reads_keys = self.progress_rule == "keyed" and bool(self.progress_meter.ruler.keys)
         self.game = self._build_game()
         self._keys_at_spawn = self._key_objects() if self._reads_keys else {}
         self.keys_held: frozenset[str] = frozenset()
@@ -161,8 +160,14 @@ class AttemptSession:
 
     @property
     def progress(self) -> float:
-        """Progress so far; a Clear counts as 1. Training reward and the record read this one rule."""
-        return 1.0 if self.record.cleared else self.progress_meter.progress
+        """Progress so far under the session's rule; a Clear counts as 1. The record keeps this one."""
+        return self.progress_under(self.progress_rule)
+
+    def progress_under(self, rule: str) -> float:
+        """Progress so far under `rule`, which a training reward may read instead of the record's."""
+        if rule not in self.meters:
+            raise ValueError(f"this session measures {sorted(self.meters)}, not {rule!r}")
+        return 1.0 if self.record.cleared else self.meters[rule].progress
 
     def act(self, pressed: list[bool], tics: int, on_frame=None) -> float:
         """Hold the given buttons for `tics` tics; return the reward.
@@ -225,7 +230,8 @@ class AttemptSession:
         if self._reads_keys and not self.finished:  # a finished game has no state: keep the last keys
             now = self._key_objects()
             self.keys_held = frozenset(c for c, ids in self._keys_at_spawn.items() if ids - now[c])
-        self.progress_meter.visit(x, y, self.keys_held)
+        for meter in self.meters.values():
+            meter.visit(x, y, self.keys_held)
 
     def _finish(self) -> None:
         r = self.record
