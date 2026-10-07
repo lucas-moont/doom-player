@@ -6,7 +6,7 @@ from dataclasses import replace
 import pytest
 
 from doom_player.contenders import RandomContender
-from doom_player.eval import EvalSpec, attempts_path, read_records, run_eval, scoreboard_row, write_row
+from doom_player.eval import SPECS, EvalSpec, attempts_path, read_records, run_eval, scoreboard_row, write_row
 from doom_player.paths import WAD_PATH
 
 pytestmark = pytest.mark.skipif(not WAD_PATH.exists(), reason="needs wads/doom.wad")
@@ -68,3 +68,9 @@ def test_a_record_without_finite_progress_never_reaches_the_scoreboard():
     records = [{"seed": s, "progress": float("nan") if s == 1 else 0.1} for s in SHORT.seeds]
     with pytest.raises(SystemExit, match=r"seeds \[1\]"):
         scoreboard_row("random", SHORT, records)
+
+
+def test_e1m2_is_scored_on_the_route_through_its_key():
+    spec = SPECS["e1m2-v1"]
+    assert (spec.map, spec.difficulty, spec.progress_rule) == ("E1M2", 3, "keyed")
+    assert SPECS["e1m1-v1"].progress_rule == "doors-open"

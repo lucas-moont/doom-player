@@ -41,7 +41,12 @@ class EvalSpec:
 
 # Settled with the owner on 2026-10-01 (M1 brief, design question 2).
 STANDARD_E1M1 = EvalSpec(name="e1m1-v1", map="E1M1", difficulty=3, seeds=(0, 1, 2, 3, 4), tic_limit=6300)
-SPECS = {STANDARD_E1M1.name: STANDARD_E1M1}
+# M5 brief, 2026-10-07: E1M1's tics per unit of route (6300 / 4761) times E1M2's
+# keyed route (9177 units), rounded up to whole minutes: 6 minutes.
+STANDARD_E1M2 = EvalSpec(
+    name="e1m2-v1", map="E1M2", difficulty=3, seeds=(0, 1, 2, 3, 4), tic_limit=12600, progress_rule="keyed"
+)
+SPECS = {spec.name: spec for spec in (STANDARD_E1M1, STANDARD_E1M2)}
 
 
 def attempts_path(results_dir: Path, contender: str, spec: EvalSpec) -> Path:
