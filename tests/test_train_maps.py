@@ -107,3 +107,13 @@ def test_a_continued_rnd_training_run_keeps_its_parents_bonus(tmp_path):
 
     seen = [torch.load(c.parent / RND_FILE)["frames_seen"] for c in (parent, child)]
     assert seen[1] == seen[0] + 128  # counted on from the parent's frames, not from 0
+
+
+def test_a_map_with_keys_also_logs_how_often_one_was_picked_up(tmp_path):
+    # Short Attempts (--tic-limit) so that 2 copies finish some within 256 steps.
+    checkpoint = train(TrainConfig(**TINY | {"map": "E1M2", "total_steps": 256}, tic_limit=280, out_dir=tmp_path))
+
+    (events,) = (checkpoint.parent / "tensorboard").rglob("events.*")
+    accumulator = EventAccumulator(str(events))
+    accumulator.Reload()
+    assert all(e.value == 0.0 for e in accumulator.Scalars("rollout/key_rate"))  # the key is far from the spawn

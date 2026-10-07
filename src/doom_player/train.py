@@ -314,8 +314,10 @@ class ProgressCurve(BaseCallback):
     policy learns the route; Progress shows the learning before the first Clear.
     Each point averages only the Attempts that ended since the last one (a few,
     since a full Attempt is thousands of steps long), so it is noisier than the
-    reward curve, which averages the last 100 Attempts. Progress is Privileged
-    Information: the policy never sees this curve; it is declared in Results.
+    reward curve, which averages the last 100 Attempts. On a Map with keys it
+    also logs the share of Attempts that ended holding one. Progress and keys
+    held are Privileged Information: the policy never sees these curves; they
+    are declared in Results.
     """
 
     def _on_step(self) -> bool:
@@ -323,6 +325,8 @@ class ProgressCurve(BaseCallback):
             if record := info.get("record"):  # the Attempt that copy was playing just ended
                 self.logger.record_mean("rollout/progress", record["progress"])
                 self.logger.record_mean("rollout/clear_rate", float(record["cleared"]))
+                if record["keys_held"] is not None:  # a Map scored with the keyed rule
+                    self.logger.record_mean("rollout/key_rate", float(bool(record["keys_held"])))
         return True
 
 
