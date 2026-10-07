@@ -34,6 +34,12 @@ PLAYER_HEIGHT = 56  # an opening lower than this is closed
 # Doors a player opens by pressing USE on them (DR/D1, normal, locked and fast).
 # A closed sector without one of these opens only from elsewhere, if at all.
 MANUAL_DOOR_ACTIONS = {1, 26, 27, 28, 31, 32, 33, 34, 117, 118}
+# Doors opened from elsewhere, by a switch (103) or a shot (46), found by sector tag.
+# A whitelist: other remote openers (63 on E1M1, for one) would change E1M1's field.
+TAGGED_DOOR_ACTIONS = {46, 103}
+# Lifts a player rides by walking on (88) or pressing a switch (62). A lift's
+# ledge is not a wall: the floor comes down to meet the player.
+LIFT_ACTIONS = {62, 88}
 
 
 @dataclass
@@ -85,11 +91,16 @@ class ProgressMeter:
 def _walls(editor: omg.mapedit.MapEditor) -> list[tuple[float, float, float, float]]:
     """Lines a player cannot cross.
 
-    One-sided and impassable lines; ledges higher than a step; and closed
-    openings, unless the closed sector is a door the player can open with USE.
+    One-sided and impassable lines; ledges higher than a step, unless one side
+    is a lift; and closed openings, unless the closed sector is a door the
+    player can open, with USE or from elsewhere.
     """
     sector_of = lambda side: editor.sidedefs[side].sector  # noqa: E731
+    tagged = lambda actions: {line.tag for line in editor.linedefs if line.action in actions and line.tag}  # noqa: E731
+    door_tags, lift_tags = tagged(TAGGED_DOOR_ACTIONS), tagged(LIFT_ACTIONS)
     openable = {sector_of(line.back) for line in editor.linedefs if line.action in MANUAL_DOOR_ACTIONS and line.back != NO_SIDE}
+    openable |= {i for i, sector in enumerate(editor.sectors) if sector.tag in door_tags}
+    lifts = {i for i, sector in enumerate(editor.sectors) if sector.tag in lift_tags}
     walls = []
     for line in editor.linedefs:
         a, b = editor.vertexes[line.vx_a], editor.vertexes[line.vx_b]
@@ -98,7 +109,8 @@ def _walls(editor: omg.mapedit.MapEditor) -> list[tuple[float, float, float, flo
             sides = (sector_of(line.front), sector_of(line.back))
             front, back = (editor.sectors[i] for i in sides)
             closed = [i for i in sides if editor.sectors[i].z_ceil - editor.sectors[i].z_floor < PLAYER_HEIGHT]
-            blocking = abs(front.z_floor - back.z_floor) > MAX_STEP or any(i not in openable for i in closed)
+            ledge = abs(front.z_floor - back.z_floor) > MAX_STEP and not lifts.intersection(sides)
+            blocking = ledge or any(i not in openable for i in closed)
         if blocking:
             walls.append((a.x, a.y, b.x, b.y))
     return walls
