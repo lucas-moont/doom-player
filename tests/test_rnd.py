@@ -6,11 +6,13 @@ of one frame of the policy view.
 
 import io
 
+import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+from stable_baselines3.common.vec_env import DummyVecEnv
 
-from doom_player.rnd import RND
+from doom_player.rnd import RND, RNDBonus
 
 
 def frames(seed: int, n: int = 64) -> np.ndarray:
@@ -59,3 +61,66 @@ def test_state_survives_a_round_trip():
     copy.load_state_dict(torch.load(saved))
     assert np.allclose(copy.bonus(seen), rnd.bonus(seen))
     assert copy.fit(seen) == pytest.approx(rnd.fit(seen), rel=1e-4)  # the optimiser's state came along too
+
+
+class Rooms(gym.Env):
+    """Three steps through three made-up rooms, one frame stack each, paying 1 per step."""
+
+    observation_space = gym.spaces.Box(0, 255, (4, 84, 84), np.uint8)
+    action_space = gym.spaces.Discrete(2)
+
+    def reset(self, *, seed=None, options=None):
+        self.room = 0
+        return self._view(), {}
+
+    def step(self, action):
+        self.room += 1
+        return self._view(), 1.0, self.room == 3, False, {}
+
+    def _view(self):
+        return np.repeat(frames(10 + self.room, n=1), 4, axis=0)
+
+
+def rooms(n_envs: int = 2) -> DummyVecEnv:
+    return DummyVecEnv([Rooms] * n_envs)
+
+
+def play(env: RNDBonus, steps: int) -> list[np.ndarray]:
+    env.reset()
+    rewards = []
+    for _ in range(steps):
+        _, reward, _, _ = env.step(np.zeros(env.num_envs, dtype=int))
+        rewards.append(reward)
+    return rewards
+
+
+def test_no_coefficient_leaves_the_reward_unchanged():
+    env = RNDBonus(rooms(), coef=0.0, rnd=RND(device="cpu"))
+    assert all(np.array_equal(r, [1.0, 1.0]) for r in play(env, 6))
+
+
+def test_the_bonus_is_added_to_the_reward_once_warmed_up():
+    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"), warmup_frames=4)
+    rewards = play(env, 6)
+    assert all(np.array_equal(r, [1.0, 1.0]) for r in rewards[:2])  # 2 steps x 2 copies: still warming up
+    assert np.all(env.last_bonus > 0)
+    assert np.allclose(rewards[-1], 1.0 + 0.5 * env.last_bonus)
+
+
+def test_the_last_screen_of_an_attempt_is_the_one_paid_for():
+    # When an Attempt ends, the vec env has already reset that copy: its observation
+    # is the next Attempt's spawn, and the screen the step reached is in the info.
+    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"))
+    play(env, 3)
+    assert np.array_equal(env.last_frames, np.repeat(frames(13, n=1), 2, axis=0))
+
+
+def test_each_finished_attempt_reports_its_bonus_and_reward():
+    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"))
+    env.reset()
+    for _ in range(3):
+        _, _, dones, infos = env.step(np.zeros(2, dtype=int))
+    assert dones.all()
+    for info in infos:
+        assert info["rnd"]["reward"] == pytest.approx(3.0)
+        assert info["rnd"]["bonus"] > 0

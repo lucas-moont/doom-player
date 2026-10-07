@@ -14,6 +14,7 @@ what is simplified, is recorded in the M5 brief.
 import numpy as np
 import torch
 from stable_baselines3.common.running_mean_std import RunningMeanStd
+from stable_baselines3.common.vec_env import VecEnv, VecEnvWrapper
 from torch import nn
 
 FRAME_SIZE = 84  # one gray frame of the policy view
@@ -122,3 +123,61 @@ class RND:
         mean, var, self.pixels.count = state["pixels"]
         self.pixels.mean, self.pixels.var = mean.numpy().copy(), var.numpy().copy()
         self._rng.bit_generator.state = state["rng"]
+
+
+class RNDBonus(VecEnvWrapper):
+    """Training only: add `coef` times the normalised RND bonus to every step's reward.
+
+    Wraps the batch of game copies in the main process, so one predictor
+    learns from every copy. The bonus is added as each step happens, because
+    SB3 computes a rollout's advantages before any callback sees it. Each step pays for the screen it reached: when an Attempt
+    ends, that is the info's terminal observation, not the next spawn.
+
+    The raw bonus is divided by the running spread of its own discounted sum
+    (discount `intrinsic_gamma`), so `coef` means the same whatever scale the
+    errors have. No bonus is paid for the first `warmup_frames` frames, while
+    the pixel statistics settle.
+    """
+
+    def __init__(
+        self,
+        venv: VecEnv,
+        coef: float,
+        rnd: RND | None = None,
+        intrinsic_gamma: float = 0.99,
+        warmup_frames: int = 0,
+    ):
+        super().__init__(venv)
+        self.rnd = rnd if rnd is not None else RND()
+        self.coef, self.intrinsic_gamma, self.warmup_frames = coef, intrinsic_gamma, warmup_frames
+        self.frames_seen = 0
+        self.returns = RunningMeanStd(shape=())  # spread of the discounted raw bonus
+        self._discounted = np.zeros(self.num_envs)
+        self._attempt_bonus = np.zeros(self.num_envs)  # paid so far in each copy's Attempt
+        self._attempt_reward = np.zeros(self.num_envs)  # the reward underneath, as it reached this wrapper
+
+    def reset(self):
+        return self.venv.reset()
+
+    def step_wait(self):
+        obs, rewards, dones, infos = self.venv.step_wait()
+        frames = obs[:, -1].copy()  # the newest frame of each copy's stack
+        for i in np.flatnonzero(dones):
+            frames[i] = infos[i]["terminal_observation"][-1]
+        self.rnd.update_obs_stats(frames)
+        self.frames_seen += len(frames)
+        raw = self.rnd.bonus(frames)
+        self._discounted = self._discounted * self.intrinsic_gamma + raw
+        self.returns.update(self._discounted)
+        bonus = raw / np.sqrt(self.returns.var + 1e-8)
+        if self.frames_seen <= self.warmup_frames:
+            bonus = np.zeros_like(bonus)
+        self.last_frames, self.last_bonus = frames, bonus
+
+        paid = self.coef * bonus
+        self._attempt_bonus += paid
+        self._attempt_reward += rewards
+        for i in np.flatnonzero(dones):
+            infos[i]["rnd"] = {"bonus": float(self._attempt_bonus[i]), "reward": float(self._attempt_reward[i])}
+            self._attempt_bonus[i] = self._attempt_reward[i] = 0.0
+        return obs, (rewards + paid).astype(np.float32), dones, infos
