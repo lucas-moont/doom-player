@@ -101,19 +101,23 @@ def test_no_coefficient_leaves_the_reward_unchanged():
 
 
 def test_the_bonus_is_added_to_the_reward_once_warmed_up():
-    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"), warmup_frames=4)
-    rewards = play(env, 6)
-    assert all(np.array_equal(r, [1.0, 1.0]) for r in rewards[:2])  # 2 steps x 2 copies: still warming up
-    assert np.all(env.last_bonus > 0)
-    assert np.allclose(rewards[-1], 1.0 + 0.5 * env.last_bonus)
+    # Same seed, same rooms: the two wrappers compute the same bonus and pay it at different rates.
+    half, full = (RNDBonus(rooms(), coef=c, rnd=RND(device="cpu"), warmup_frames=4) for c in (0.5, 1.0))
+    paid_half, paid_full = (np.array(play(env, 6)) - 1.0 for env in (half, full))
+    assert not paid_half[:2].any() and not paid_full[:2].any()  # 2 steps x 2 copies: still warming up
+    assert np.all(paid_half[2:] > 0)
+    assert np.allclose(paid_full[2:], 2 * paid_half[2:])
 
 
 def test_the_last_screen_of_an_attempt_is_the_one_paid_for():
     # When an Attempt ends, the vec env has already reset that copy: its observation
     # is the next Attempt's spawn, and the screen the step reached is in the info.
-    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"))
-    play(env, 3)
-    assert np.array_equal(env.last_frames, np.repeat(frames(13, n=1), 2, axis=0))
+    rnd = RND(device="cpu")
+    paid_for = []
+    bonus = rnd.bonus
+    rnd.bonus = lambda f: paid_for.append(f.copy()) or bonus(f)
+    play(RNDBonus(rooms(), coef=0.5, rnd=rnd), 3)
+    assert np.array_equal(paid_for[-1], np.repeat(frames(13, n=1), 2, axis=0))
 
 
 def test_each_finished_attempt_reports_its_bonus_and_reward():
@@ -135,23 +139,23 @@ def test_the_predictor_trains_on_each_rollout_and_learns_the_rooms():
         play(env, 6)
         last = env.train_on_rollout()
     assert last["rnd/predictor_loss"] < first["rnd/predictor_loss"]
-    assert env.rollouts_trained == 11
 
 
 def test_ppo_trains_the_predictor_after_every_rollout():
     env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"))
+    trained = []
+    train_on_rollout = env.train_on_rollout
+    env.train_on_rollout = lambda: trained.append(1) or train_on_rollout()
     model = PPO("CnnPolicy", env, n_steps=6, batch_size=12, n_epochs=1, device="cpu", seed=0)
     model.learn(total_timesteps=24, callback=RNDUpdate())  # 2 copies x 6 steps per rollout: 2 rollouts
-    assert env.rollouts_trained == 2
+    assert len(trained) == 2
 
 
-def test_the_wrapper_state_survives_a_round_trip():
+def test_the_wrapper_state_survives_a_round_trip(tmp_path):
     env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"))
     play(env, 6)
     env.train_on_rollout()
-    saved = io.BytesIO()
-    torch.save(env.state_dict(), saved)
-    saved.seek(0)
+    env.save(tmp_path / "rnd.pt")
     copy = RNDBonus(rooms(), coef=0.5, rnd=RND(seed=9, device="cpu"))
-    copy.load_state_dict(torch.load(saved))
+    copy.load(tmp_path / "rnd.pt")
     assert np.allclose(play(copy, 2), play(env, 2))  # the same bonus for the same screens

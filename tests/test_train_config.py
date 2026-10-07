@@ -28,7 +28,4 @@ def test_an_rnd_training_run_is_named_for_it():
         TrainConfig(map="E1M2", rnd_coef=0.5, label="shaped")
     with pytest.raises(ValueError, match="positive"):
         TrainConfig(map="E1M2", rnd_coef=-1.0, label="rnd")
-    config = TrainConfig(map="E1M2", rnd_coef=0.5, label="shaped-rnd")
-    assert config.contender == "ppo-e1m2-d3-seed0-shaped-rnd"
-    assert config.rnd == {"coef": 0.5, "frame": "latest", "value_heads": 1, "warmup_frames": 8 * 256}
-    assert TrainConfig(map="E1M2").rnd is None
+    assert TrainConfig(map="E1M2", rnd_coef=0.5, label="shaped-rnd").contender == "ppo-e1m2-d3-seed0-shaped-rnd"

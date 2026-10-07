@@ -6,15 +6,14 @@ learns. Original Maps need the purchased WAD.
 
 import pytest
 import torch
-from conftest import predicts_an_action
+from conftest import logged_scalars, predicts_an_action
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
-from doom_player.maps import make_map_env
-from doom_player.paths import WAD_PATH
 from doom_player.contenders.ppo import PPOMapContender
 from doom_player.eval import EvalSpec
+from doom_player.maps import make_map_env
+from doom_player.paths import WAD_PATH
 from doom_player.train import RND_FILE, TrainConfig, train, training_record
 
 pytestmark = [
@@ -56,9 +55,7 @@ def test_map_training_logs_progress_and_clear_rate(tmp_path):
     # 3,200 steps over 2 copies: every copy finishes at least one 1,575-step Attempt.
     checkpoint = train(TrainConfig(**TINY | {"total_steps": 3200}, out_dir=tmp_path))
 
-    (events,) = (checkpoint.parent / "tensorboard").rglob("events.*")
-    accumulator = EventAccumulator(str(events))
-    accumulator.Reload()
+    accumulator = logged_scalars(checkpoint)
     assert {"rollout/progress", "rollout/clear_rate"} <= set(accumulator.Tags()["scalars"])
     for tag in ("rollout/progress", "rollout/clear_rate"):
         assert all(0 <= e.value <= 1 for e in accumulator.Scalars(tag))
@@ -92,9 +89,7 @@ def test_rnd_training_run_logs_the_bonus_and_saves_it_with_each_checkpoint(tmp_p
     assert training_record(checkpoint)["rnd"]["coef"] == 0.5
     assert (checkpoint.parent / RND_FILE).exists()
     assert all((halfway / RND_FILE).exists() for halfway in checkpoint.parent.glob("steps-*"))
-    (events,) = (checkpoint.parent / "tensorboard").rglob("events.*")
-    accumulator = EventAccumulator(str(events))
-    accumulator.Reload()
+    accumulator = logged_scalars(checkpoint)
     assert {"rnd/predictor_loss", "rnd/bonus_raw"} <= set(accumulator.Tags()["scalars"])
     # The bonus is training only: the policy plays the Eval Suite like any other.
     record = PPOMapContender(checkpoint).play_attempt(EvalSpec("test-short", "E1M1", 3, (0,), 140), 0)
@@ -113,7 +108,5 @@ def test_a_map_with_keys_also_logs_how_often_one_was_picked_up(tmp_path):
     # Short Attempts (--tic-limit) so that 2 copies finish some within 256 steps.
     checkpoint = train(TrainConfig(**TINY | {"map": "E1M2", "total_steps": 256}, tic_limit=280, out_dir=tmp_path))
 
-    (events,) = (checkpoint.parent / "tensorboard").rglob("events.*")
-    accumulator = EventAccumulator(str(events))
-    accumulator.Reload()
+    accumulator = logged_scalars(checkpoint)
     assert all(e.value == 0.0 for e in accumulator.Scalars("rollout/key_rate"))  # the key is far from the spawn

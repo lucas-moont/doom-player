@@ -16,8 +16,8 @@ import uuid
 from dataclasses import asdict, dataclass
 from functools import partial
 from pathlib import Path
+from typing import NamedTuple
 
-import torch
 import wandb
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
@@ -25,8 +25,8 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize, unwrap_vec_wrapper
 
-from doom_player.eval import map_spec
-from doom_player.maps import ACTIONS, ProgressShaping, make_map_env
+from doom_player.eval import MAP_SPECS
+from doom_player.maps import ACTIONS, DEFAULT_PROGRESS_RULE, DEFAULT_TIC_LIMIT, ProgressShaping, make_map_env
 from doom_player.paths import REPO_ROOT
 from doom_player.rnd import RND, RNDBonus, RNDUpdate
 from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
@@ -39,7 +39,13 @@ RND_FILE = "rnd.pt"  # the RND bonus's networks and statistics, saved beside mod
 SCENARIO_SHAPING = ("kill_reward", "health_penalty")
 MAP_SHAPING = ("progress_reward", "death_penalty")
 SHAPING_PROGRESS_RULE = "doors-open"  # M4's recipe pays every-door-open Progress, on every Map (ADR 0013)
-DEFAULT_TIC_LIMIT = 6300  # a Map without an Eval Spec: E1M1's 3 minutes
+
+
+class MapRules(NamedTuple):
+    """How a Map Training Run's Attempts are played and measured."""
+
+    tic_limit: int
+    progress_rule: str  # the rule the record and the Progress curve keep; shaping pays its own
 
 
 @dataclass(frozen=True)
@@ -127,29 +133,18 @@ class TrainConfig:
         return terms if self.scenario else {**terms, "progress_rule": SHAPING_PROGRESS_RULE}
 
     @property
-    def rnd(self) -> dict | None:
-        """The exploration bonus as `training.json` records it; None without one."""
-        if not self.rnd_coef:
-            return None
-        return {"coef": self.rnd_coef, "frame": "latest", "value_heads": 1, "warmup_frames": self.n_envs * self.n_steps}
-
-    @property
-    def map_rules(self) -> tuple[int, str]:
-        """Maps: tic limit and Progress rule, the Map's Eval Spec's unless `tic_limit` says otherwise.
-
-        The Progress rule is the one the record and the Progress curve keep, so
-        training is read on the same ruler as the Scoreboard; shaping pays its own.
-        """
-        spec = map_spec(self.map)
-        tic_limit = self.tic_limit or (spec.tic_limit if spec else DEFAULT_TIC_LIMIT)
-        return tic_limit, spec.progress_rule if spec else "doors-open"
+    def map_rules(self) -> MapRules:
+        """Maps: the Map's Eval Spec's rules, so training is read on the Scoreboard's ruler; `tic_limit` overrides."""
+        spec = MAP_SPECS.get(self.map)
+        rules = MapRules(spec.tic_limit, spec.progress_rule) if spec else MapRules(DEFAULT_TIC_LIMIT, DEFAULT_PROGRESS_RULE)
+        return rules._replace(tic_limit=self.tic_limit or rules.tic_limit)
 
     def env_factory(self):
         """How each training copy is built: the env, and the shaping wrapper (None without shaping)."""
         if self.scenario:
             return partial(make_scenario_env, self.scenario), RewardShaping if self.reward_shaping else None
-        tic_limit, progress_rule = self.map_rules
-        env = partial(make_map_env, self.map, self.difficulty, tic_limit, progress_rule=progress_rule)
+        rules = self.map_rules
+        env = partial(make_map_env, self.map, self.difficulty, rules.tic_limit, progress_rule=rules.progress_rule)
         return env, ProgressShaping if self.reward_shaping else None
 
 
@@ -183,18 +178,17 @@ def train(config: TrainConfig) -> Path:
     # wrapper inside make_vec_env still logs the raw reward, and the Eval
     # Suite scores the raw reward. A continued Training Run keeps its parent's
     # scale, which its value network learned on.
-    parent_scale = config.init_from.with_name(REWARD_SCALE_FILE) if config.init_from else None
-    if parent_scale and parent_scale.exists():
+    if parent_scale := _beside(config.init_from, REWARD_SCALE_FILE):
         env = VecNormalize.load(str(parent_scale), env)
     else:
         env = VecNormalize(env, norm_obs=False, norm_reward=True)
-    if config.rnd:
+    if config.rnd_coef:
         # Outside VecNormalize, so the game's reward is rescaled the same with or
-        # without the bonus, and the bonus is scaled on its own (M5 brief).
-        env = RNDBonus(env, config.rnd_coef, RND(seed=config.seed), warmup_frames=config.rnd["warmup_frames"])
-        parent_rnd = config.init_from.with_name(RND_FILE) if config.init_from else None
-        if parent_rnd and parent_rnd.exists():
-            env.load_state_dict(torch.load(parent_rnd))
+        # without the bonus, and the bonus is scaled on its own (M5 brief). No
+        # bonus during the first rollout, while the pixel statistics settle.
+        env = RNDBonus(env, config.rnd_coef, RND(seed=config.seed), warmup_frames=config.n_envs * config.n_steps)
+        if parent_rnd := _beside(config.init_from, RND_FILE):
+            env.load(parent_rnd)
     algorithm = RecurrentPPO if config.recurrent else PPO
     hyperparameters = dict(
         n_steps=config.n_steps,
@@ -230,7 +224,7 @@ def train(config: TrainConfig) -> Path:
             callbacks = [IntermediateCheckpoints(run_dir, config, parent)] if config.checkpoint_every else []
             if config.map:
                 callbacks.append(ProgressCurve())
-            if config.rnd:
+            if config.rnd_coef:
                 callbacks.append(RNDUpdate())
             start = time.perf_counter()
             # A continued Training Run keeps counting steps from where its checkpoint stopped.
@@ -258,21 +252,22 @@ def save_checkpoint(
     model.save(checkpoint)
     model.get_vec_normalize_env().save(str(folder / REWARD_SCALE_FILE))  # for a Training Run continued from here
     if bonus := unwrap_vec_wrapper(model.get_env(), RNDBonus):
-        torch.save(bonus.state_dict(), folder / RND_FILE)
+        bonus.save(folder / RND_FILE)
+    rules = config.map_rules if config.map else MapRules(None, None)
     record = {
         "run_id": uuid.uuid4().hex[:12],  # tells this checkpoint apart from a retrain with the same seed
         "contender": config.contender + (f"-at-{model.num_timesteps}" if halfway else ""),
         "scenario": config.scenario,
         "map": config.map,
         "difficulty": config.difficulty if config.map else None,
-        "tic_limit": config.map_rules[0] if config.map else None,
-        "progress_rule": config.map_rules[1] if config.map else None,  # the rule the record and curve keep
+        "tic_limit": rules.tic_limit,
+        "progress_rule": rules.progress_rule,  # the rule the record and curve keep
         "seed": config.seed,
         "steps": model.num_timesteps,
         # A continued Training Run's cost includes the Training Run it started from.
         "wall_clock_s": round(wall_clock_s + (parent["wall_clock_s"] if parent else 0), 1),
         "reward_shaping": config.reward_shaping,
-        "rnd": config.rnd,
+        "rnd": bonus.settings if bonus else None,
         "recurrent": config.recurrent,
         "actions": list(ACTIONS) if config.map else None,  # the Action set, in the order the policy learned it
         "init_from": parent["run_id"] if parent else None,
@@ -325,9 +320,15 @@ class ProgressCurve(BaseCallback):
             if record := info.get("record"):  # the Attempt that copy was playing just ended
                 self.logger.record_mean("rollout/progress", record["progress"])
                 self.logger.record_mean("rollout/clear_rate", float(record["cleared"]))
-                if record["keys_held"] is not None:  # a Map scored with the keyed rule
+                if record["keys_held"] is not None:  # keys were read: a keyed Map with keys on it
                     self.logger.record_mean("rollout/key_rate", float(bool(record["keys_held"])))
         return True
+
+
+def _beside(checkpoint: Path | None, name: str) -> Path | None:
+    """A file saved next to `checkpoint`, if there is one."""
+    path = checkpoint.with_name(name) if checkpoint else None
+    return path if path and path.exists() else None
 
 
 def training_record(checkpoint: Path) -> dict:
