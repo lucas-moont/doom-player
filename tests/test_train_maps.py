@@ -35,7 +35,8 @@ def test_map_training_records_map_difficulty_and_shaping(tmp_path):
     record = training_record(train(config))
 
     assert (record["scenario"], record["map"], record["difficulty"]) == (None, "E1M1", 2)
-    assert record["reward_shaping"] == {"progress_reward": 100.0, "death_penalty": 50.0}
+    assert record["reward_shaping"] == {"progress_reward": 100.0, "death_penalty": 50.0, "progress_rule": "doors-open"}
+    assert (record["tic_limit"], record["progress_rule"]) == (6300, "doors-open")  # e1m1-v1's rules
     assert record["contender"] == "ppo-e1m1-d2-seed0-shaped"  # one Scoreboard name per setting
     assert record["recurrent"] is False and record["init_from"] is None
 

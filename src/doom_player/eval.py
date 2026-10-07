@@ -49,6 +49,11 @@ STANDARD_E1M2 = EvalSpec(
 SPECS = {spec.name: spec for spec in (STANDARD_E1M1, STANDARD_E1M2)}
 
 
+def map_spec(map_name: str) -> EvalSpec | None:
+    """The Eval Spec a Map is scored on, whose rules its Training Runs play by; None if it has none yet."""
+    return next((spec for spec in SPECS.values() if spec.map == map_name), None)
+
+
 def attempts_path(results_dir: Path, contender: str, spec: EvalSpec) -> Path:
     return results_dir / "attempts" / contender / f"{spec.name}.jsonl"
 

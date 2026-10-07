@@ -24,6 +24,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 
+from doom_player.eval import map_spec
 from doom_player.maps import ACTIONS, ProgressShaping, make_map_env
 from doom_player.paths import REPO_ROOT
 from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
@@ -34,6 +35,8 @@ SEED_SPACING = 1000  # at most this many game copies per Training Run; see train
 REWARD_SCALE_FILE = "vecnormalize.pkl"  # VecNormalize's running reward statistics, saved beside model.zip
 SCENARIO_SHAPING = ("kill_reward", "health_penalty")
 MAP_SHAPING = ("progress_reward", "death_penalty")
+SHAPING_PROGRESS_RULE = "doors-open"  # M4's recipe pays every-door-open Progress, on every Map (ADR 0013)
+DEFAULT_TIC_LIMIT = 6300  # a Map without an Eval Spec: E1M1's 3 minutes
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,7 @@ class TrainConfig:
     seed: int = 0  # the training seed: network weights and the games played while learning
     map: str | None = None  # ...an original Map, at `difficulty`
     difficulty: int = 3
+    tic_limit: int | None = None  # Maps: each Attempt's length; None takes the Map's Eval Spec's
     total_steps: int = 200_000
     n_envs: int = 8
     n_steps: int = 256  # steps each copy plays before one PPO update
@@ -83,6 +87,8 @@ class TrainConfig:
             raise ValueError("--difficulty is Doom's skill level, 1 to 5")
         if not re.fullmatch(r"[a-z0-9-]*", self.label):
             raise ValueError("--label may use lowercase letters, digits and dashes only: it names folders")
+        if self.tic_limit is not None and (self.scenario or self.tic_limit < 1):
+            raise ValueError("--tic-limit applies to Maps only, and must be positive")
         if self.n_envs > SEED_SPACING:
             raise ValueError(f"at most {SEED_SPACING} copies, or neighbouring training seeds would share games")
 
@@ -106,13 +112,28 @@ class TrainConfig:
     @property
     def reward_shaping(self) -> dict | None:
         terms = {n: getattr(self, n) for n in (SCENARIO_SHAPING if self.scenario else MAP_SHAPING)}
-        return terms if any(terms.values()) else None
+        if not any(terms.values()):
+            return None
+        return terms if self.scenario else {**terms, "progress_rule": SHAPING_PROGRESS_RULE}
+
+    @property
+    def map_rules(self) -> tuple[int, str]:
+        """Maps: tic limit and Progress rule, the Map's Eval Spec's unless `tic_limit` says otherwise.
+
+        The Progress rule is the one the record and the Progress curve keep, so
+        training is read on the same ruler as the Scoreboard; shaping pays its own.
+        """
+        spec = map_spec(self.map)
+        tic_limit = self.tic_limit or (spec.tic_limit if spec else DEFAULT_TIC_LIMIT)
+        return tic_limit, spec.progress_rule if spec else "doors-open"
 
     def env_factory(self):
         """How each training copy is built: the env, and the shaping wrapper (None without shaping)."""
         if self.scenario:
             return partial(make_scenario_env, self.scenario), RewardShaping if self.reward_shaping else None
-        return partial(make_map_env, self.map, self.difficulty), ProgressShaping if self.reward_shaping else None
+        tic_limit, progress_rule = self.map_rules
+        env = partial(make_map_env, self.map, self.difficulty, tic_limit, progress_rule=progress_rule)
+        return env, ProgressShaping if self.reward_shaping else None
 
 
 def train(config: TrainConfig) -> Path:
@@ -216,6 +237,8 @@ def save_checkpoint(
         "scenario": config.scenario,
         "map": config.map,
         "difficulty": config.difficulty if config.map else None,
+        "tic_limit": config.map_rules[0] if config.map else None,
+        "progress_rule": config.map_rules[1] if config.map else None,  # the rule the record and curve keep
         "seed": config.seed,
         "steps": model.num_timesteps,
         # A continued Training Run's cost includes the Training Run it started from.
@@ -290,6 +313,7 @@ def main() -> None:
     game.add_argument("--scenario", choices=sorted(SCENARIOS))
     game.add_argument("--map", type=str.upper, help="an original Map, such as E1M1")
     parser.add_argument("--difficulty", type=int)
+    parser.add_argument("--tic-limit", type=int, help="Maps: each Attempt's length; default, the Map's Eval Spec's")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--total-steps", type=int)
     parser.add_argument("--n-envs", type=int)
