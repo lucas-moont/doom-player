@@ -139,3 +139,8 @@ def test_keyed_route_is_the_distance_field_on_a_map_without_keys(field):
     assert route.start_remaining == field.start_distance
     for spot in (E1M1_START, E1M1_EXIT_SWITCH, (1500, -3200), (-700, -2100)):
         assert route.remaining(*spot) == field.distance_at(*spot)
+
+
+def test_meter_refuses_a_spawn_that_cannot_reach_the_exit():
+    with pytest.raises(ValueError, match="E1M2"):
+        ProgressMeter(distance_field("E1M2", locked=RED))

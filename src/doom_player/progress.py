@@ -170,6 +170,12 @@ class ProgressMeter:
     closest: float = math.inf
     path: list[tuple[float, float]] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        # An unreachable spawn would make Progress NaN, or a false 1 the first
+        # time the player stands on a cell the exit reaches.
+        if not math.isfinite(self.ruler.start_remaining):
+            raise ValueError(f"{self.ruler.map}: the spawn cannot reach the exit under {type(self.ruler).__name__}")
+
     @property
     def field(self) -> DistanceField:
         """The distance field a picture of the Attempt draws."""
