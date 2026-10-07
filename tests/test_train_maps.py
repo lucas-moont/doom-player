@@ -5,6 +5,7 @@ learns. Original Maps need the purchased WAD.
 """
 
 import pytest
+import torch
 from conftest import predicts_an_action
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
@@ -12,7 +13,9 @@ from tensorboard.backend.event_processing.event_accumulator import EventAccumula
 
 from doom_player.maps import make_map_env
 from doom_player.paths import WAD_PATH
-from doom_player.train import TrainConfig, train, training_record
+from doom_player.contenders.ppo import PPOMapContender
+from doom_player.eval import EvalSpec
+from doom_player.train import RND_FILE, TrainConfig, train, training_record
 
 pytestmark = [
     pytest.mark.slow,
@@ -80,3 +83,27 @@ def test_training_continues_from_a_checkpoint(tmp_path):
     # The reward scale the value network learned on is saved, so the next stage can start from it.
     assert (easy.parent / "vecnormalize.pkl").exists() and (hard.parent / "vecnormalize.pkl").exists()
     assert predicts_an_action(PPO.load(hard), make_map_env("E1M1"))
+
+
+def test_rnd_training_run_logs_the_bonus_and_saves_it_with_each_checkpoint(tmp_path):
+    config = TrainConfig(**TINY, rnd_coef=0.5, label="rnd", checkpoint_every=64, out_dir=tmp_path)
+    checkpoint = train(config)
+
+    assert training_record(checkpoint)["rnd"]["coef"] == 0.5
+    assert (checkpoint.parent / RND_FILE).exists()
+    assert all((halfway / RND_FILE).exists() for halfway in checkpoint.parent.glob("steps-*"))
+    (events,) = (checkpoint.parent / "tensorboard").rglob("events.*")
+    accumulator = EventAccumulator(str(events))
+    accumulator.Reload()
+    assert {"rnd/predictor_loss", "rnd/bonus_raw"} <= set(accumulator.Tags()["scalars"])
+    # The bonus is training only: the policy plays the Eval Suite like any other.
+    record = PPOMapContender(checkpoint).play_attempt(EvalSpec("test-short", "E1M1", 3, (0,), 140), 0)
+    assert record["actions"] > 0
+
+
+def test_a_continued_rnd_training_run_keeps_its_parents_bonus(tmp_path):
+    parent = train(TrainConfig(**TINY, rnd_coef=0.5, label="rnd", out_dir=tmp_path))
+    child = train(TrainConfig(**TINY, rnd_coef=0.5, init_from=parent, label="rnd-more", out_dir=tmp_path))
+
+    seen = [torch.load(c.parent / RND_FILE)["frames_seen"] for c in (parent, child)]
+    assert seen[1] == seen[0] + 128  # counted on from the parent's frames, not from 0

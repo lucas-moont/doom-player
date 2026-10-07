@@ -21,3 +21,14 @@ def test_shaping_pays_doors_open_progress_whatever_the_score_uses():
     shaping = TrainConfig(map="E1M2", progress_reward=100.0, death_penalty=25.0).reward_shaping
     assert shaping == {"progress_reward": 100.0, "death_penalty": 25.0, "progress_rule": "doors-open"}
     assert TrainConfig(map="E1M2").reward_shaping is None
+
+
+def test_an_rnd_training_run_is_named_for_it():
+    with pytest.raises(ValueError, match="label"):
+        TrainConfig(map="E1M2", rnd_coef=0.5, label="shaped")
+    with pytest.raises(ValueError, match="positive"):
+        TrainConfig(map="E1M2", rnd_coef=-1.0, label="rnd")
+    config = TrainConfig(map="E1M2", rnd_coef=0.5, label="shaped-rnd")
+    assert config.contender == "ppo-e1m2-d3-seed0-shaped-rnd"
+    assert config.rnd == {"coef": 0.5, "frame": "latest", "value_heads": 1, "warmup_frames": 8 * 256}
+    assert TrainConfig(map="E1M2").rnd is None

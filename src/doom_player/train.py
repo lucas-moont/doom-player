@@ -28,7 +28,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNorm
 from doom_player.eval import map_spec
 from doom_player.maps import ACTIONS, ProgressShaping, make_map_env
 from doom_player.paths import REPO_ROOT
-from doom_player.rnd import RNDBonus
+from doom_player.rnd import RND, RNDBonus, RNDUpdate
 from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
 
 CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
@@ -68,6 +68,9 @@ class TrainConfig:
     # Maps (`maps.ProgressShaping`): the exit alone pays too rarely to learn from.
     progress_reward: float = 0.0
     death_penalty: float = 0.0
+    # Exploration bonus (`rnd.RNDBonus`): how much a new screen pays next to the
+    # rescaled game reward. Zero leaves training as in M4.
+    rnd_coef: float = 0.0
     recurrent: bool = False  # an LSTM policy (RecurrentPPO): a memory of the last seconds
     init_from: Path | None = None  # continue from this checkpoint, e.g. a lower Difficulty
     checkpoint_every: int = 0  # steps between intermediate checkpoints; 0 for none
@@ -92,6 +95,10 @@ class TrainConfig:
             raise ValueError("--label may use lowercase letters, digits and dashes only: it names folders")
         if self.tic_limit is not None and (self.scenario or self.tic_limit < 1):
             raise ValueError("--tic-limit applies to Maps only, and must be positive")
+        if self.rnd_coef < 0:
+            raise ValueError("--rnd-coef must be 0 (no bonus) or positive")
+        if self.rnd_coef and "rnd" not in self.label:
+            raise ValueError("a Training Run with --rnd-coef needs a --label naming it, such as shaped-rnd")
         if self.n_envs > SEED_SPACING:
             raise ValueError(f"at most {SEED_SPACING} copies, or neighbouring training seeds would share games")
 
@@ -118,6 +125,13 @@ class TrainConfig:
         if not any(terms.values()):
             return None
         return terms if self.scenario else {**terms, "progress_rule": SHAPING_PROGRESS_RULE}
+
+    @property
+    def rnd(self) -> dict | None:
+        """The exploration bonus as `training.json` records it; None without one."""
+        if not self.rnd_coef:
+            return None
+        return {"coef": self.rnd_coef, "frame": "latest", "value_heads": 1, "warmup_frames": self.n_envs * self.n_steps}
 
     @property
     def map_rules(self) -> tuple[int, str]:
@@ -174,6 +188,13 @@ def train(config: TrainConfig) -> Path:
         env = VecNormalize.load(str(parent_scale), env)
     else:
         env = VecNormalize(env, norm_obs=False, norm_reward=True)
+    if config.rnd:
+        # Outside VecNormalize, so the game's reward is rescaled the same with or
+        # without the bonus, and the bonus is scaled on its own (M5 brief).
+        env = RNDBonus(env, config.rnd_coef, RND(seed=config.seed), warmup_frames=config.rnd["warmup_frames"])
+        parent_rnd = config.init_from.with_name(RND_FILE) if config.init_from else None
+        if parent_rnd and parent_rnd.exists():
+            env.load_state_dict(torch.load(parent_rnd))
     algorithm = RecurrentPPO if config.recurrent else PPO
     hyperparameters = dict(
         n_steps=config.n_steps,
@@ -209,6 +230,8 @@ def train(config: TrainConfig) -> Path:
             callbacks = [IntermediateCheckpoints(run_dir, config, parent)] if config.checkpoint_every else []
             if config.map:
                 callbacks.append(ProgressCurve())
+            if config.rnd:
+                callbacks.append(RNDUpdate())
             start = time.perf_counter()
             # A continued Training Run keeps counting steps from where its checkpoint stopped.
             model.learn(
@@ -249,6 +272,7 @@ def save_checkpoint(
         # A continued Training Run's cost includes the Training Run it started from.
         "wall_clock_s": round(wall_clock_s + (parent["wall_clock_s"] if parent else 0), 1),
         "reward_shaping": config.reward_shaping,
+        "rnd": config.rnd,
         "recurrent": config.recurrent,
         "actions": list(ACTIONS) if config.map else None,  # the Action set, in the order the policy learned it
         "init_from": parent["run_id"] if parent else None,
@@ -326,6 +350,7 @@ def main() -> None:
     parser.add_argument("--health-penalty", type=float, help="Scenarios: training cost per health point lost")
     parser.add_argument("--progress-reward", type=float, help="Maps: training reward for reaching Progress 1")
     parser.add_argument("--death-penalty", type=float, help="Maps: training cost of dying")
+    parser.add_argument("--rnd-coef", type=float, help="exploration bonus (RND) for new screens; 0 for none")
     parser.add_argument("--recurrent", action="store_true", help="an LSTM policy (RecurrentPPO)")
     parser.add_argument("--init-from", type=Path, help="continue training from this checkpoint")
     parser.add_argument("--checkpoint-every", type=int, help="steps between intermediate checkpoints")
