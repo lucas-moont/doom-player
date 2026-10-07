@@ -6,7 +6,7 @@ from dataclasses import replace
 import pytest
 
 from doom_player.contenders import RandomContender
-from doom_player.eval import EvalSpec, attempts_path, read_records, run_eval, write_row
+from doom_player.eval import EvalSpec, attempts_path, read_records, run_eval, scoreboard_row, write_row
 from doom_player.paths import WAD_PATH
 
 pytestmark = pytest.mark.skipif(not WAD_PATH.exists(), reason="needs wads/doom.wad")
@@ -62,3 +62,9 @@ def test_records_from_before_progress_rules_count_as_doors_open(tmp_path):
     old = [{k: v for k, v in r.items() if k not in ("progress_rule", "keys_held")} for r in read_records(path)]
     path.write_text("".join(json.dumps(r) + "\n" for r in old))
     assert run_eval(RandomContender(), SHORT, tmp_path) is not None
+
+
+def test_a_record_without_finite_progress_never_reaches_the_scoreboard():
+    records = [{"seed": s, "progress": float("nan") if s == 1 else 0.1} for s in SHORT.seeds]
+    with pytest.raises(SystemExit, match=r"seeds \[1\]"):
+        scoreboard_row("random", SHORT, records)

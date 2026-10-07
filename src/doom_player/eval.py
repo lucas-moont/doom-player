@@ -10,6 +10,7 @@ every seed is done, the Contender's Scoreboard row is written to
 
 import argparse
 import json
+import math
 import subprocess
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -166,6 +167,9 @@ def training_columns(training: dict | None) -> dict:
 def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict], training: dict | None = None) -> dict:
     by_seed = {r["seed"]: r for r in records}
     records = [by_seed[s] for s in spec.seeds]
+    unmeasured = [r["seed"] for r in records if not math.isfinite(r["progress"])]
+    if unmeasured:  # a NaN mean would land on the Scoreboard and sort as nothing at all
+        raise SystemExit(f"seeds {unmeasured} in {spec.name} have no finite Progress; fix the meter, then measure again")
     n = len(records)
     tokens = [r["tokens"] for r in records if r["tokens"] is not None]
     return {
@@ -175,6 +179,7 @@ def scoreboard_row(contender: str, spec: EvalSpec, records: list[dict], training
         "difficulty": spec.difficulty,
         "seeds": list(spec.seeds),
         "tic_limit": spec.tic_limit,
+        "progress_rule": spec.progress_rule,
         "clear_rate": sum(r["cleared"] for r in records) / n,
         "progress_mean": round(sum(r["progress"] for r in records) / n, 4),
         "progress_by_seed": [r["progress"] for r in records],
