@@ -202,6 +202,23 @@ class RNDBonus(VecEnvWrapper):
             "rnd/bonus_scale": float(np.sqrt(self.returns.var)),
         }
 
+    def state_dict(self) -> dict:
+        """Everything a continued Training Run needs to pay the same bonus (saved as `rnd.pt`)."""
+        return {
+            "rnd": self.rnd.state_dict(),
+            "returns": (float(self.returns.mean), float(self.returns.var), float(self.returns.count)),
+            "discounted": torch.from_numpy(self._discounted),
+            "frames_seen": self.frames_seen,
+        }
+
+    def load_state_dict(self, state: dict) -> None:
+        self.rnd.load_state_dict(state["rnd"])
+        mean, var, self.returns.count = state["returns"]
+        self.returns.mean, self.returns.var = np.float64(mean), np.float64(var)
+        if len(state["discounted"]) == self.num_envs:  # else a different number of copies: start the sums afresh
+            self._discounted = state["discounted"].numpy().copy()
+        self.frames_seen = state["frames_seen"]
+
 
 class RNDUpdate(BaseCallback):
     """Train RND's predictor after every rollout, and log what the bonus paid next to the game's reward."""

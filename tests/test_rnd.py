@@ -143,3 +143,15 @@ def test_ppo_trains_the_predictor_after_every_rollout():
     model = PPO("CnnPolicy", env, n_steps=6, batch_size=12, n_epochs=1, device="cpu", seed=0)
     model.learn(total_timesteps=24, callback=RNDUpdate())  # 2 copies x 6 steps per rollout: 2 rollouts
     assert env.rollouts_trained == 2
+
+
+def test_the_wrapper_state_survives_a_round_trip():
+    env = RNDBonus(rooms(), coef=0.5, rnd=RND(device="cpu"))
+    play(env, 6)
+    env.train_on_rollout()
+    saved = io.BytesIO()
+    torch.save(env.state_dict(), saved)
+    saved.seek(0)
+    copy = RNDBonus(rooms(), coef=0.5, rnd=RND(seed=9, device="cpu"))
+    copy.load_state_dict(torch.load(saved))
+    assert np.allclose(play(copy, 2), play(env, 2))  # the same bonus for the same screens

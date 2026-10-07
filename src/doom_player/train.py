@@ -17,22 +17,25 @@ from dataclasses import asdict, dataclass
 from functools import partial
 from pathlib import Path
 
+import torch
 import wandb
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize, unwrap_vec_wrapper
 
 from doom_player.eval import map_spec
 from doom_player.maps import ACTIONS, ProgressShaping, make_map_env
 from doom_player.paths import REPO_ROOT
+from doom_player.rnd import RNDBonus
 from doom_player.scenarios import SCENARIOS, RewardShaping, make_scenario_env
 
 CHECKPOINT_DIR = REPO_ROOT / "checkpoints"
 WANDB_PROJECT = "doom-player"
 SEED_SPACING = 1000  # at most this many game copies per Training Run; see train() for why
 REWARD_SCALE_FILE = "vecnormalize.pkl"  # VecNormalize's running reward statistics, saved beside model.zip
+RND_FILE = "rnd.pt"  # the RND bonus's networks and statistics, saved beside model.zip when it was paid
 SCENARIO_SHAPING = ("kill_reward", "health_penalty")
 MAP_SHAPING = ("progress_reward", "death_penalty")
 SHAPING_PROGRESS_RULE = "doors-open"  # M4's recipe pays every-door-open Progress, on every Map (ADR 0013)
@@ -231,6 +234,8 @@ def save_checkpoint(
     folder.mkdir(parents=True, exist_ok=True)
     model.save(checkpoint)
     model.get_vec_normalize_env().save(str(folder / REWARD_SCALE_FILE))  # for a Training Run continued from here
+    if bonus := unwrap_vec_wrapper(model.get_env(), RNDBonus):
+        torch.save(bonus.state_dict(), folder / RND_FILE)
     record = {
         "run_id": uuid.uuid4().hex[:12],  # tells this checkpoint apart from a retrain with the same seed
         "contender": config.contender + (f"-at-{model.num_timesteps}" if halfway else ""),
