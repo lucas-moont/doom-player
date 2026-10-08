@@ -20,8 +20,8 @@ ppo-e1m2-d3-seed0-shaped-rnd,1,killed in the armour's alcove,True,,0.0012
 ppo-e1m2-d3-seed0-shaped-rnd,2,killed in the armour's alcove,True,,0.0028
 ppo-e1m2-d3-seed0-shaped-rnd,3,killed in the armour's alcove,True,,0.0026
 ppo-e1m2-d3-seed0-shaped-rnd,4,killed in the armour's alcove,True,,0.0006
-ppo-e1m2-d3-seed0-keyed-shaped,0,killed by monsters past the red door, before the exit,True,red,0.8826
-ppo-e1m2-d3-seed0-keyed-shaped,1,killed by monsters past the red door, before the exit,True,red,0.987
-ppo-e1m2-d3-seed0-keyed-shaped,2,killed by monsters past the red door, before the exit,True,red,0.8826
-ppo-e1m2-d3-seed0-keyed-shaped,3,killed by monsters past the red door, before the exit,True,red,0.8826
-ppo-e1m2-d3-seed0-keyed-shaped,4,killed by monsters past the red door, before the exit,True,red,0.9573
+ppo-e1m2-d3-seed0-keyed-shaped,0,"killed by monsters past the red door, before the exit",True,red,0.8826
+ppo-e1m2-d3-seed0-keyed-shaped,1,"killed by monsters past the red door, before the exit",True,red,0.987
+ppo-e1m2-d3-seed0-keyed-shaped,2,"killed by monsters past the red door, before the exit",True,red,0.8826
+ppo-e1m2-d3-seed0-keyed-shaped,3,"killed by monsters past the red door, before the exit",True,red,0.8826
+ppo-e1m2-d3-seed0-keyed-shaped,4,"killed by monsters past the red door, before the exit",True,red,0.9573
