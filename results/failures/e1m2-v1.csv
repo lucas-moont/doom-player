@@ -1,4 +1,4 @@
-# Failure categories of the M5 policies' failed e1m2-v1 Attempts, given by watching each one filmed afterwards (one frame per decision); every Attempt walked to the red door first
+# Failure categories of the M5 policies' failed e1m2-v1 Attempts, given by watching each one filmed afterwards (one frame per decision); every Attempt of the doors-open policies walked to the red door first, and the keyed-shaped policy's went to the red key first
 contender,seed,category,died,keys_held,progress
 ppo-e1m2-d3-seed0-shaped,0,facing a wall without the key until the time ran out,False,,0.0995
 ppo-e1m2-d3-seed0-shaped,1,killed while wandering without the key,True,,0.1031
@@ -20,3 +20,8 @@ ppo-e1m2-d3-seed0-shaped-rnd,1,killed in the armour's alcove,True,,0.0012
 ppo-e1m2-d3-seed0-shaped-rnd,2,killed in the armour's alcove,True,,0.0028
 ppo-e1m2-d3-seed0-shaped-rnd,3,killed in the armour's alcove,True,,0.0026
 ppo-e1m2-d3-seed0-shaped-rnd,4,killed in the armour's alcove,True,,0.0006
+ppo-e1m2-d3-seed0-keyed-shaped,0,killed by monsters past the red door, before the exit,True,red,0.8826
+ppo-e1m2-d3-seed0-keyed-shaped,1,killed by monsters past the red door, before the exit,True,red,0.987
+ppo-e1m2-d3-seed0-keyed-shaped,2,killed by monsters past the red door, before the exit,True,red,0.8826
+ppo-e1m2-d3-seed0-keyed-shaped,3,killed by monsters past the red door, before the exit,True,red,0.8826
+ppo-e1m2-d3-seed0-keyed-shaped,4,killed by monsters past the red door, before the exit,True,red,0.9573
