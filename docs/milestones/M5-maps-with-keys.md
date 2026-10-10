@@ -67,7 +67,9 @@ Written 2026-10-04, after M4. M4 showed that Progress shaping makes `E1M1` easy:
 
 ## Results
 
-In progress. The notes below are in the order they were measured.
+**Summary.** PPO Clears `E1M2` from screen pixels once its training reward pays the route through the key: 8 of 15 Attempts over three training seeds, at 10M steps and about 4.8 hours each. M4's recipe, whose reward counts the locked red door as open, Cleared none of 15: every Attempt walked to the red door first. RND at coefficient 0.5 made that recipe worse (one training seed), and no recurrent policy was needed. Of the keyed-shaping seeds, two Clear 4 of 5 and one circles a room past the red door until it is killed. Both the training reward and the score read Privileged Information (positions and keys held); the policies see only the screen.
+
+The notes below are in the order they were measured.
 
 - **Progress could not measure `E1M2`** (found 2026-10-07). The meter read lifts and doors opened by a switch as walls, so the exit room, behind a lift (sector tag 13), was unreachable from the spawn: Progress came out as NaN. Lifts (line actions 62 and 88) and switch- or shot-opened doors (103 and 46) are now passable. The list is closed on purpose: adding action 63, which `E1M1` uses, would change `E1M1`'s field, and a test pins that field to the one every `E1M1` result was measured with.
 - **`E1M2`'s keys, locked doors and route**, read from the WAD (`docs/milestones/make_figures_m5.py` draws both pictures):
