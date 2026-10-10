@@ -15,8 +15,8 @@ The order is deliberate: the LLM-only Contender comes before reinforcement learn
 | M2 | LLM plays E1M1 | done 2026-10-02 | Harness, memory, tool use, cost accounting | **Post 1**: how far an LLM gets, measured | `milestones/M2-llm-only.md` |
 | M3 | RL on Scenarios | done 2026-10-03 | PPO, reward, training curves, Stable-Baselines3 | **Post 2**: agent learns to shoot and survive | `milestones/M3-rl-on-scenarios.md` |
 | M4 | RL Clears E1M1 | done 2026-10-04 | Reward shaping, recurrent memory (LSTM), curriculum by Difficulty | **Post 3**: first original Map Cleared by a learned Driver | `milestones/M4-rl-clears-e1m1.md` |
-| M5 | Maps with keys | next | Intrinsic reward (RND), ablation | `E1M2` Cleared; with-and-without comparison | `milestones/M5-maps-with-keys.md` |
-| M6 | Learning by watching | planned | Behavioural cloning, demo recording, fine-tuning | Does a human demo speed up learning? | written when M5 is done |
+| M5 | Maps with keys | done 2026-10-10 | Intrinsic reward (RND), ablation | `E1M2` Cleared; with-and-without comparison | `milestones/M5-maps-with-keys.md` |
+| M6 | Learning by watching | next | Behavioural cloning, demo recording, fine-tuning | Does a human demo speed up learning? | `milestones/M6-learning-by-watching.md` |
 | M7 | Unseen Map | planned | Generalisation, held-out evaluation, overfitting | How a learned Driver does on a Map it never trained on, next to the LLM | written when M6 is done |
 | M8 | Driver + Navigator | planned | Hierarchical control, Subgoals | **Big post**: all Contenders, one Scoreboard | written when M7 is done |
 | M9 | Doom Episode 1 | planned | Campaign wrapper, generalisation | Video of a full Campaign | written when M8 is done |
@@ -33,7 +33,7 @@ Set `Status` to `done` with the completion date when a milestone's completion cr
 
 ## Briefs are written one milestone ahead
 
-Only M0 to M5 have briefs. Each later brief is written when the milestone before it is done, because its design depends on what was measured. Writing a brief means: goal, concepts, steps, completion criteria, open facts to test.
+Only M0 to M6 have briefs. Each later brief is written when the milestone before it is done, because its design depends on what was measured. Writing a brief means: goal, concepts, steps, completion criteria, open facts to test.
 
 ## Pace
 

@@ -47,9 +47,9 @@ Written 2026-10-04, after M4. M4 showed that Progress shaping makes `E1M1` easy:
 - [x] The better setting is repeated with at least 3 training seeds
 - [x] Videos of a Clear (if any) and a failure exist, and every failed Attempt has a failure category
 - [x] Every privileged reward term is stated in Results
-- [ ] `docs/learn/M5-maps-with-keys.md` exists
-- [ ] Post 4 material is drafted in `docs/posts/04-maps-with-keys.md`
-- [ ] The M6 brief is written
+- [x] `docs/learn/M5-maps-with-keys.md` exists
+- [x] Post 4 material is drafted in `docs/posts/04-maps-with-keys.md`
+- [x] The M6 brief is written
 
 ## Open facts to test
 

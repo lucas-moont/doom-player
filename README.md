@@ -16,7 +16,9 @@ M2 - LLM plays E1M1 done: Claude Opus 5.5, playing through the Doom MCP server w
 
 M3 - RL on Scenarios done: PPO policies that see only the screen beat the random agent on three ViZDoom Scenarios, `DefendCenter` with three training seeds that end within 0.2 of each other. On `DeadlyCorridor` the first policy gamed its reward by charging forward and dying; a shaped training reward taught it to shoot (Scenario table below; write-up in `docs/posts/02-rl-learns-to-shoot.md`).
 
-M4 - RL Clears E1M1 done: a PPO policy that sees only the screen Clears `E1M1` in 15 of 15 Attempts over three training seeds, at about a second per Attempt (0.8 to 0.9 s on average), once training pays for Progress toward the exit; on the exit reward alone it learns nothing (Scoreboard below; write-up in `docs/posts/03-rl-clears-e1m1.md`). Current milestone: **M5 - Maps with keys**.
+M4 - RL Clears E1M1 done: a PPO policy that sees only the screen Clears `E1M1` in 15 of 15 Attempts over three training seeds, at about a second per Attempt (0.8 to 0.9 s on average), once training pays for Progress toward the exit; on the exit reward alone it learns nothing (Scoreboard below; write-up in `docs/posts/03-rl-clears-e1m1.md`).
+
+M5 - Maps with keys done: on `E1M2`, whose exit is behind a red door, M4's recipe Clears nothing, because its training reward counts the locked door as open and every policy walks to it without the key; an exploration bonus (RND) made it worse. A training reward that pays the route through the key gives 8 Clears in 15 Attempts over three training seeds, at 10M steps each; one seed of three never Clears (Scoreboard below; write-up in `docs/posts/04-maps-with-keys.md`). Current milestone: **M6 - Learning by watching**.
 
 ## Scoreboard
 
