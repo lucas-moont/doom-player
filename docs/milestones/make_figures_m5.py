@@ -35,6 +35,10 @@ RUNS = [
     ("e1m2-d3-seed2-shaped", "c4qulqd2"),
     ("e1m2-d3-seed0-keyed-shaped", "75vs5eh1"),
     ("e1m2-d3-seed0-keyed-shaped-10m", "vra1yd8z"),
+    ("e1m2-d3-seed1-keyed-shaped", "2n94feuo"),
+    ("e1m2-d3-seed1-keyed-shaped-10m", "4flr2r0w"),
+    ("e1m2-d3-seed2-keyed-shaped", "09w7luov"),
+    ("e1m2-d3-seed2-keyed-shaped-10m", "p5x0w4m9"),
 ]
 TAGS = ["rollout/ep_rew_mean", "rollout/progress", "rollout/clear_rate", "rollout/key_rate"]
 RED = frozenset({"red"})

@@ -26,3 +26,19 @@ ppo-e1m2-d3-seed0-keyed-shaped,2,"killed by monsters past the red door, before t
 ppo-e1m2-d3-seed0-keyed-shaped,3,"killed by monsters past the red door, before the exit",True,red,0.8826
 ppo-e1m2-d3-seed0-keyed-shaped,4,"killed by monsters past the red door, before the exit",True,red,0.9573
 ppo-e1m2-d3-seed0-keyed-shaped-10m,1,"killed by monsters past the red door, before the exit",True,red,0.7101
+ppo-e1m2-d3-seed1-keyed-shaped,0,"had the red key, killed before the red door",True,red,0.3866
+ppo-e1m2-d3-seed1-keyed-shaped,1,"killed by monsters past the red door, before the exit",True,red,0.8551
+ppo-e1m2-d3-seed1-keyed-shaped,2,"killed by monsters past the red door, before the exit",True,red,0.8597
+ppo-e1m2-d3-seed1-keyed-shaped,3,"killed by monsters past the red door, before the exit",True,red,0.8592
+ppo-e1m2-d3-seed1-keyed-shaped,4,"killed by monsters past the red door, before the exit",True,red,0.8597
+ppo-e1m2-d3-seed1-keyed-shaped-10m,0,"killed by monsters past the red door, before the exit",True,red,0.9914
+ppo-e1m2-d3-seed2-keyed-shaped,0,"killed by monsters past the red door, before the exit",True,red,0.8511
+ppo-e1m2-d3-seed2-keyed-shaped,1,"killed by monsters past the red door, before the exit",True,red,0.8597
+ppo-e1m2-d3-seed2-keyed-shaped,2,"had the red key, killed before the red door",True,red,0.3883
+ppo-e1m2-d3-seed2-keyed-shaped,3,"killed by monsters past the red door, before the exit",True,red,0.832
+ppo-e1m2-d3-seed2-keyed-shaped,4,"had the red key, killed before the red door",True,red,0.5405
+ppo-e1m2-d3-seed2-keyed-shaped-10m,0,circled the octagonal room past the red door until killed,True,red,0.8597
+ppo-e1m2-d3-seed2-keyed-shaped-10m,1,circled the octagonal room past the red door until killed,True,red,0.8597
+ppo-e1m2-d3-seed2-keyed-shaped-10m,2,circled the octagonal room past the red door until killed,True,red,0.8597
+ppo-e1m2-d3-seed2-keyed-shaped-10m,3,circled the octagonal room past the red door until killed,True,red,0.8597
+ppo-e1m2-d3-seed2-keyed-shaped-10m,4,circled the octagonal room past the red door until killed,True,red,0.8597
