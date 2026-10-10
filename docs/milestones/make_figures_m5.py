@@ -28,7 +28,18 @@ from doom_player.progress import LOCKS, KeyedRoute, distance_field, render
 OUT = Path(__file__).parent / "img"
 CURVES = REPO_ROOT / "results" / "curves"
 # Checkpoint folder and W&B run of each E1M2 Training Run.
-RUNS = [("e1m2-d3-seed0-shaped", "9a3e5i8r"), ("e1m2-d3-seed0-shaped-rnd", "uqsc8q3g")]
+RUNS = [
+    ("e1m2-d3-seed0-shaped", "9a3e5i8r"),
+    ("e1m2-d3-seed0-shaped-rnd", "uqsc8q3g"),
+    ("e1m2-d3-seed1-shaped", "9ikt5jpx"),
+    ("e1m2-d3-seed2-shaped", "c4qulqd2"),
+    ("e1m2-d3-seed0-keyed-shaped", "75vs5eh1"),
+    ("e1m2-d3-seed0-keyed-shaped-10m", "vra1yd8z"),
+    ("e1m2-d3-seed1-keyed-shaped", "2n94feuo"),
+    ("e1m2-d3-seed1-keyed-shaped-10m", "4flr2r0w"),
+    ("e1m2-d3-seed2-keyed-shaped", "09w7luov"),
+    ("e1m2-d3-seed2-keyed-shaped-10m", "p5x0w4m9"),
+]
 TAGS = ["rollout/ep_rew_mean", "rollout/progress", "rollout/clear_rate", "rollout/key_rate"]
 RED = frozenset({"red"})
 STEPS = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]

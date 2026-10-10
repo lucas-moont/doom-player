@@ -110,3 +110,10 @@ def test_a_map_with_keys_also_logs_how_often_one_was_picked_up(tmp_path):
 
     accumulator = logged_scalars(checkpoint)
     assert all(e.value == 0.0 for e in accumulator.Scalars("rollout/key_rate"))  # the key is far from the spawn
+
+
+def test_shaping_can_pay_the_route_through_the_keys(tmp_path):
+    config = TrainConfig(**TINY | {"map": "E1M2"}, progress_reward=100.0, shaping_rule="keyed", label="keyed", out_dir=tmp_path)
+    record = training_record(train(config))
+    assert record["reward_shaping"]["progress_rule"] == "keyed"
+    assert record["progress_rule"] == "keyed"  # the rule e1m2-v1 scores by, read by the curve
